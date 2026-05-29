@@ -1,0 +1,95 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+palette     = "doom_one"
+add_newline = false
+
+format = "$directory$git_branch$git_status$cmd_duration$character"
+
+# ─── Palette ──────────────────────────────────────────────────────────────────
+[palettes.doom_one]
+blue    = "#51afef"
+violet  = "#a9a1e1"
+green   = "#98be65"
+teal    = "#4db5bd"
+yellow  = "#ecbe7b"
+red     = "#ff6c6b"
+orange  = "#da8548"
+cyan    = "#46d9ff"
+grey    = "#5b6268"
+fg      = "#bbc2cf"
+bg2     = "#282c34"
+bg3     = "#32363e"
+bg4     = "#3f444a"
+
+# ─── Directory ────────────────────────────────────────────────────────────────
+[directory]
+style            = "bold blue"
+truncation_length = 3
+truncate_to_repo  = true
+format           = "[$path]($style) "
+read_only        = " "
+read_only_style  = "red"
+
+[directory.substitutions]
+"~/Documents/lampblack" = "󱓛 lampblack"
+"~/coding"              = " coding"
+
+# ─── Git ──────────────────────────────────────────────────────────────────────
+[git_branch]
+symbol           = " "
+style            = "violet"
+format           = "[$symbol$branch]($style) "
+truncation_length = 24
+
+[git_status]
+style      = "yellow"
+format     = "([$all_status$ahead_behind]($style))"
+ahead      = "⇡$count"
+behind     = "⇣$count"
+diverged   = "⇕⇡$ahead_count⇣$behind_count"
+modified   = "!$count"
+staged     = "+$count"
+deleted    = "✘$count"
+untracked  = "?$count"
+conflicted = "≠$count"
+
+# ─── Duration ────────────────────────────────────────────────────────────────
+[cmd_duration]
+style            = "grey"
+format           = " [$duration]($style)"
+min_time         = 2_000
+show_milliseconds = false
+
+# ─── Prompt character ─────────────────────────────────────────────────────────
+[character]
+success_symbol = " [❯](bold green)"
+error_symbol   = " [❯](bold red)"
+vimcmd_symbol  = " [❮](bold violet)"
+
+# ─── Disabled ─────────────────────────────────────────────────────────────────
+[package]
+disabled = true
+
+[username]
+disabled = true
+
+[hostname]
+disabled = true
+
+[time]
+disabled = true
+
+[nodejs]
+disabled = true
+
+[bun]
+disabled = true
+
+[rust]
+disabled = true
+
+[python]
+disabled = true
+
+[java]
+disabled = true

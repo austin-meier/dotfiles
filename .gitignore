@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Editor / IDE local state
+**/.claude/settings.local.json
+
+# ─── zsh ─────────────────────────────────────────────────────────────────────
+zsh/secrets.zsh
+zsh/.zsh_history
+zsh/.zcompdump*
+zsh/.zcompcache/
+
+# ─── nvim ────────────────────────────────────────────────────────────────────
+# lazy.nvim runtime state (plugins are installed into XDG_DATA_HOME, not here,
+# but lock the rest of the tree down just in case)
+nvim/.netrwhist
+
+# ─── emacs ───────────────────────────────────────────────────────────────────
+# emacs has its own whitelist .gitignore inside emacs/ that ignores elpaca,
+# eshell history, auto-save-list, etc. Nothing extra needed here.

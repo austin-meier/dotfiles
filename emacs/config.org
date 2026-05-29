@@ -1,0 +1,777 @@
+#
++AUTHOR: Austin Meier
+#+TITLE: Austin's EMACS config
+#+DESCRIPTION: Austin's personal emacs configuration file
+#+STARTUP showeverything
+#+OPTIONS toc:2
+
+* TABLE OF CONTENTS :toc:
+- [[#priority][Priority]]
+  - [[#cross-platform][cross-platform]]
+  - [[#elpaca][elpaca]]
+  - [[#evil-vim-mode][evil vim mode]]
+  - [[#helpers][helpers]]
+  - [[#keybindings][Keybindings]]
+- [[#emacs-configuration][emacs configuration]]
+  - [[#reload-files-after-detecting-disk-change][Reload files after detecting disk change]]
+  - [[#disable-toolbar--scrollbars][Disable Toolbar + Scrollbars]]
+  - [[#line-numbers][Line Numbers]]
+  - [[#doom-theme][Doom Theme]]
+  - [[#fontstext][Fonts/Text]]
+- [[#completions][Completions]]
+  - [[#vertico][Vertico]]
+  - [[#orderless][orderless]]
+  - [[#consult][consult]]
+  - [[#company-mode][Company Mode]]
+- [[#org-mode-configurations][Org Mode Configurations]]
+  - [[#enable-table-of-contents][Enable Table of Contents]]
+  - [[#org-bullets][Org Bullets]]
+- [[#plugins][Plugins]]
+  - [[#eat-terminal-emulator][eat (terminal emulator)]]
+  - [[#magit][magit]]
+  - [[#snippets][Snippets]]
+  - [[#lsp][LSP]]
+  - [[#treesitter][Treesitter]]
+  - [[#debugger][Debugger]]
+  - [[#treemacs][Treemacs]]
+  - [[#which-key][Which-Key]]
+  - [[#paredit][Paredit]]
+  - [[#claude-code][Claude Code]]
+- [[#language-specific][Language Specific]]
+  - [[#emacs-lisp][Emacs lisp]]
+  - [[#clojure][Clojure]]
+  - [[#ada][Ada]]
+
+* Priority
+
+TODO:
+- ripgrep/file searching by name and grep + project searching
+- paredit/smartparens
+- CIDER
+- color mode on eshell
+- debugger
+** cross-platform
+#+begin_src emacs-lisp
+  ;; for the eat terminal emulator we need stty.exe which git provides
+  ;; this dir also has some useful posix implementations that just helps
+  (when (eq system-type 'windows-nt)
+    (add-to-list 'exec-path "C:/Program Files/Git/usr/bin"))
+#+end_src
+
+** elpaca
+#+begin_src emacs-lisp
+  (defvar elpaca-installer-version 0.11)
+  (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
+  (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
+  (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
+  (defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
+                                :ref nil :depth 1 :inherit ignore
+                                :files (:defaults "elpaca-test.el" (:exclude "extensions"))
+                                :build (:not elpaca--activate-package)))
+  (let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
+         (build (expand-file-name "elpaca/" elpaca-builds-directory))
+         (order (cdr elpaca-order))
+         (default-directory repo))
+    (add-to-list 'load-path (if (file-exists-p build) build repo))
+    (unless (file-exists-p repo)
+      (make-directory repo t)
+      (when (<= emacs-major-version 28) (require 'subr-x))
+      (condition-case-unless-debug err
+          (if-let* ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
+                    ((zerop (apply #'call-process `("git" nil ,buffer t "clone"
+                                                    ,@(when-let* ((depth (plist-get order :depth)))
+                                                        (list (format "--depth=%d" depth) "--no-single-branch"))
+                                                    ,(plist-get order :repo) ,repo))))
+                    ((zerop (call-process "git" nil buffer t "checkout"
+                                          (or (plist-get order :ref) "--"))))
+                    (emacs (concat invocation-directory invocation-name))
+                    ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
+                                          "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                    ((require 'elpaca))
+                    ((elpaca-generate-autoloads "elpaca" repo)))
+              (progn (message "%s" (buffer-string)) (kill-buffer buffer))
+            (error "%s" (with-current-buffer buffer (buffer-string))))
+        ((error) (warn "%s" err) (delete-directory repo 'recursive))))
+    (unless (require 'elpaca-autoloads nil t)
+      (require 'elpaca)
+      (elpaca-generate-autoloads "elpaca" repo)
+      (let ((load-source-file-function nil)) (load "./elpaca-autoloads"))))
+  (add-hook 'after-init-hook #'elpaca-process-queues)
+  (when (eq system-type 'windows-nt)
+    (elpaca-no-symlink-mode))
+  (elpaca `(,@elpaca-order))
+#+end_src
+
+** evil vim mode
+
+#+begin_src emacs-lisp
+  ;; Install use-package support
+  (elpaca elpaca-use-package
+    ;; Enable use-package :ensure support for Elpaca.
+    (elpaca-use-package-mode)
+    (setq elpaca-use-package-by-default t))
+
+  (elpaca-wait)
+
+  ;;When installing a package usVed in the init file itself,
+  ;;e.g. a package which adds a use-package key word,
+  ;;use the :wait recipe keyword to block until that package is installed/configured.
+  ;;For example:
+  ;;(use-package general :ensure (:wait t) :demand t)
+  (use-package evil
+    :ensure t
+    :demand t
+    :init
+    (setq evil-want-integration t)
+    (setq evil-want-keybinding nil)
+    (setq evil-vsplit-window-right t)
+    (setq evil-split-window-below t)
+    (setq evil-emacs-state-modes nil)
+    (setq evil-undo-system 'undo-redo)
+    (setq evil-kill-on-visual-paste nil)
+    :config
+    (evil-mode 1))
+
+  (use-package evil-collection
+    :after evil
+    :ensure t
+    :config
+    (evil-collection-init))
+
+  ;;Turns off elpaca-use-package-mode current declaration
+  ;;Note this will cause evaluate the declaration immediately. It is not deferred.
+  ;;Useful for configuring built-in emacs features.
+  (use-package emacs :ensure nil :config (setq ring-bell-function #'ignore))
+#+end_src
+
+** helpers
+Macros
+#+begin_src emacs-lisp
+(defmacro cmd! (&rest body)
+  `(lambda () (interactive) ,@body))
+#+end_src
+
+#+begin_src emacs-lisp
+    (setq config-file-location "~/.config/emacs/config.org")
+
+    (defun open-config-file ()
+      (interactive)
+      (find-file config-file-location))
+
+    (defun reload-config-file ()
+      (interactive)
+      (org-babel-load-file config-file-location))
+
+    (defun open-window-below ()
+      "Open and jump to window below you"
+      (interactive)
+      (split-window-below)
+      (other-window 1))
+
+    (defun open-window-right ()
+      "Open and jump to window below you"
+      (interactive)
+      (split-window-right)
+      (other-window 1))
+
+    (defun open-eshell-below ()
+      "Open an eshell in a new horizontally split window."
+      (interactive)
+      (open-window-below)
+      (eshell))
+
+    (defun my/eshell-project-or-current-dir ()
+      "Open an eshell for the current project or current directory.
+
+         If the current buffer is part of a project (via `project.el`):
+         - Try to switch to an existing eshell buffer named after the project root.
+         - If it doesn't exist, create a new eshell in the project root.
+
+         If not in a project, open a standard eshell in the current buffer's directory."
+      (interactive)
+      (open-window-below)
+      (let* ((proj (project-current))
+             (default-dir (if proj
+                              (project-root proj)
+                            default-directory))
+             (eshell-name (if proj
+                              (concat "eshell-" (file-name-nondirectory
+                                                 (directory-file-name default-dir)))
+                            nil)))
+        ;; If project-based eshell exists, switch to it
+        (if eshell-name
+            (let ((buf (get-buffer eshell-name)))
+              (if buf
+                  (switch-to-buffer buf)
+                ;; Create new eshell in project root with the name
+                (let ((default-directory default-dir))
+                  (eshell "new")
+                  (rename-buffer eshell-name))))
+          ;; No project: just open regular eshell in current directory
+          (let ((default-directory default-dir))
+            (eshell)))))
+
+    (defun austin/git-stage-all ()
+      "Stage all changes, including untracked files."
+      (interactive)
+      (magit-stage-modified t) 
+      (message "All files staged"))
+
+    (defun austin/tab-last-buffer ()
+      "Open a new tab with the last buffer you were visiting."
+      (interactive)
+      ;; Get the previous buffer
+      (let ((last-buf (other-buffer (current-buffer) t)))
+        (tab-bar-new-tab)
+        (switch-to-buffer last-buf)))
+
+  (defun austin/clj-debug-repl ()
+    "Jack-in CIDER with Flow-Storm and nREPL middleware for Clojure only."
+    (interactive)
+    (let ((deps-map
+           "{:deps {} 
+             :aliases {:dev 
+                       {:classpath-overrides {org.clojure/clojure nil} 
+                        :extra-deps {
+                                     com.github.flow-storm/clojure {:mvn/version \\\"1.12.4\\\"}
+                                     com.github.flow-storm/flow-storm-dbg {:mvn/version \\\"4.5.9\\\"}
+                                     cider/cider-nrepl {:mvn/version \\\"0.58.0\\\"}
+                                     }
+                        :main-opts [
+                                     \"-m\" \"nrepl.cmdline\" \"--middleware\" \"[cider.nrepl/cider-middleware]\"
+                                     ]}}}"))
+      (cider-jack-in (list :jack-in-cmd (concat "clj -Sforce -Sdeps \"" deps-map "\" -A:dev")))))
+  
+#+end_src
+
+** Keybindings
+#+begin_src emacs-lisp
+  (use-package general
+    :demand t
+    :config
+    (general-evil-setup)
+
+    ;; Set 'SPC' to be our global leader key
+    (general-create-definer austin/leader-key
+      :states '(normal insert visual emacs treemacs)
+      :keymaps 'override
+      :prefix "SPC"
+      :global-prefix "M-SPC") ;; access leader in insert mode
+
+    (austin/leader-key
+      ;; buffers
+      "SPC" '(switch-to-buffer :wk "switch buffer")
+      "b"   '(:ignore t :wk "buffers")
+      "bb"  '(switch-to-buffer :wk "switch buffer")
+      "bk"  '((lambda () (interactive) (kill-this-buffer)) :wk "kill this buffer")
+      "bn"  '(next-buffer :wk "next buffer")
+      "bp"  '(previous-buffer :wk "previous buffer")
+      "br"  '(revert-buffer :wk "reload Buffer")
+      
+      ;; files menu
+      "f"   '(:ignore t :wk "files"-)
+      "ff"  '(find-file :wk "find file")
+      "fs"  '(consult-fd :wk "file search")
+      "fd"  '(dired-create-directory "create directory")
+      "fg"  '(consult-ripgrep t :wk "grep files")
+      "fs"  '(save-buffer :wk "save file") 
+      "fr"  '(rename-file :wk "rename file")
+      "f:"  '(reload-config-file :wk "reload config file")
+      "fo"  '(:ignore t :wk "open files")
+
+      "o"   '(:ignore t :wk "open")
+      "od"  '(dired-jump :wk "open directory")
+      "ot"  '(my/eshell-project-or-current-dir :wk "open terminal")
+      "oc"  '(open-config-file :wk "open config file")
+      "oh"  `(,(cmd! (dired "~")) :wk "open home")
+      "op"  '(project-switch-project :wk "open project")
+      "of"  '(treemacs :wk "open finder")
+
+      ;; projects menu
+      "p"   '(:ignore t :wk "projects")
+      "po"  '(project-switch-project :wk "open project")
+      "p k"  '(project-kill-buffers :wk "kill project buffer")
+      "p SPC"  '(project-switch-to-buffer :wk "switch project buffer")
+
+      ;; help menu
+      "h"   '(:ignore t :wk "help")
+      "hh"  'help
+      "hd"  '(:ignore t :wk "describe")
+      "hdb" 'describe-bindings
+      "hdm" 'describe-mode
+      "hdf" 'describe-function
+      "hdk" 'describe-key
+      "hds" 'describe-symbol
+      "hdv" 'describe-variable
+
+      ;; window menu
+      "w"   '(:ignore t :wk "window")
+      "wl"  '(open-window-right :wk "open window right")
+      "wj"  '(open-window-below :wk "open window below")
+      "wq"  '(delete-window :wk "kill window")
+      "wk"  '(delete-window :wk "kill window")
+
+      ;; tabs
+      "t"   '(:ignore t :wk "tabs")
+      "tn"  '(austin/tab-last-buffer :wk "new tab")
+      "tk"  '(tab-bar-close-tab :wk "kill tab")
+      "td"  '(tab-bar-detach-tab :wk "detach tab")
+      "tr"  '(tab-bar-rename-tab :wk "rename tab")
+      "tw"  '(tab-bar-move-window-to-tab :wk "tab this window")
+      "tc"  '(tab-bar-close-other-tabs :wk "close other tabs")
+
+      "tl"  '(tab-bar-switch-to-next-tab :wk "next tab")
+      "th"  '(tab-bar-switch-to-prev-tab :wk "previous tab")
+
+      
+      ;; emacs bindings
+      ":"   '(execute-extended-command :wk "m-x")
+      "x"   '(eval-expression :wk "emacs-eval")
+
+      ;; magit
+      "g"   '(:ignore t :wk "git")
+
+      ;; Common Magit commands
+      "ga"  '(austin/git-stage-all :wk "add .")
+      "gs"  '(magit-status :wk "status")
+      "gb"  '(magit-branch :wk "branch")
+      "gc"  '(magit-commit :wk "commit")
+      "gC"  '(magit-clone :wk "clone")
+      "gp"  '(magit-push :wk "push")
+      "gf"  '(magit-fetch :wk "fetch")
+      "gl"  '(magit-log-all :wk "log")
+      "gm"  '(magit-merge :wk "merge")
+      "gr"  '(magit-rebase :wk "rebase")
+      "gd"  '(magit-diff :wk "diff")
+      "gD"  '(magit-diff-unstaged :wk "diff unstaged")
+      "gt"  '(magit-tag :wk "tag")
+
+      ;; lsp
+      "c"   '(:ignore t :wk "lsp")
+
+      "ca"  '(:ignore t :wk "actions")
+      "caa" '(lsp-execute-code-action :wk "code action")
+      "car" '(lsp-rename :wk "rename")
+      "cao" '(lsp-organize-imports :wk "organize imports")
+      "caf" '(lsp-format-buffer :wk "format buffer")
+      "cas" '(lsp-signature-activate :wk "signature help")
+
+      "cg"   '(:ignore t :wk "goto")
+      "cgd"  '(lsp-find-definition :wk "definition")
+      "cgD"  '(lsp-find-declaration :wk "declaration")
+      "cgi"  '(lsp-find-implementation :wk "implementation")
+      "cgt"  '(lsp-find-type-definition :wk "type definition")
+      "cgr"  '(lsp-find-references :wk "references")
+      "cgs"  '(lsp-document-symbol :wk "document symbols")
+      "cgw"  '(lsp-workspace-symbol :wk "workspace symbols")
+
+      "cp"   '(:ignore t :wk "peek")
+      "cpd"  '(lsp-ui-peek-find-definitions :wk "peek def")
+      "cpi"  '(lsp-ui-peek-find-implementation :wk "peek impl")
+      "cpr"  '(lsp-ui-peek-find-references :wk "peek refs")
+
+      "ce"   '(:ignore t :wk "errors")
+      "cen"  '(flymake-goto-next-error :wk "next error")
+      "cep"  '(flymake-goto-prev-error :wk "previous error")
+      "cel"  '(lsp-ui-flycheck-list :wk "error list")
+
+      "cw"   '(:ignore t :wk "workspace")
+      "cwr"  '(lsp-workspace-restart :wk "restart")
+      "cwo"  '(lsp-workspace-folders-open :wk "folders")
+      "cwa"  '(lsp-workspace-folders-add :wk "add folder")
+      "cwd"  '(lsp-workspace-folders-remove :wk "remove folder")
+
+      "cu"   '(:ignore t :wk "ui")
+      "cud"  '(lsp-ui-doc-show :wk "show doc")
+      "cuh"  '(lsp-ui-doc-hide :wk "hide doc")
+      "cuj"  '(lsp-ui-doc-glance :wk "glance doc")
+      "cus"  '(lsp-ui-sideline-toggle-symbols-info :wk "sideline symbols")
+
+      "ct"   '(:ignore t :wk "tree")
+      "ctt"  '(lsp-treemacs-symbols :wk "symbols tree")
+      "ctd"  '(lsp-treemacs-errors-list :wk "errors tree")
+      "ctr"  '(lsp-treemacs-references :wk "refs tree")
+
+      ;; dap
+      "cd"   '(:ignore t :wk "debug")
+      "cdd" '(dap-debug :wk "start debug session")
+      "cdc" '(dap-continue :wk "continue")
+      "cdl" '(dap-next :wk "next/step over")
+      "cdi" '(dap-step-in :wk "step in")
+      "cdo" '(dap-step-out :wk "step out")
+      "cdb" '(dap-breakpoint-toggle :wk "toggle breakpoint")
+      "cdB" '(dap-breakpoint-condition :wk "conditional breakpoint")
+      "cdv" '(dap-ui-locals :wk "locals")
+      "cds" '(dap-ui-sessions :wk "sessions")
+      "cdS" '(dap-ui-sessions-restore :wk "restore sessions")
+      "cdr" '(dap-restart-frame :wk "restart frame")
+      "cdR" '(dap-restart-debug-session :wk "restart session")
+      "cdt" '(dap-tooltip-mode :wk "tooltip mode")
+      "cdu" '(dap-ui-mode :wk "ui mode")
+
+      ;; snippets
+      "cs" '(yas-insert-snippet :wk "Code Snippets")
+      )
+
+    (austin/leader-key
+      :keymaps 'emacs-lisp-mode-map
+      :keymaps 'lisp-interaction-mode-map
+      "e" '(:ignore t :which-key "eval")
+      "eb" '(eval-buffer :which-key "eval buffer")
+      "er" '(eval-region :which-key "eval region")
+      "ee" '(eval-last-sexp :which-key "eval last sexp")
+      "ed" '(eval-defun :which-key "eval defun"))
+
+
+    (austin/leader-key
+      :keymaps 'clojure-ts-mode-map
+      "e" '(:ignore t :wk "eval")
+      "ee" '(cider-eval-last-sexp :wk "eval last sexp")
+      "ei" '(cider-inspect-last-result :wk "inspect last result")
+      "ec" '(cider-eval-defun-to-comment :wk "eval to comment")
+      "ed" '(cider-eval-defun-at-point :wk "eval defun")
+      "eb" '(cider-eval-buffer :wk "eval buffer")
+      "en" '(cider-eval-ns-form :wk "cider eval ns")
+      "eN" '(cider-eval-ns :wk "cider eval ns (all)")
+      "ep" '(cider-pprint-eval-last-sexp :wk "cider pprint last sexp")
+      "er" '(:ignore t :wk "repl")
+      "erj" '(cider-jack-in :wk "jack-in")
+      "erk" '(cider-quit :wk "kill repl")
+      "erd" '(austin/clj-debug-repl :wk "flowstorm repl")
+      "erb" '(cider-switch-to-repl-buffer :wk "repl buffer")
+      "erc" '(cider-repl-clear-buffer :wk "clear repl")
+
+  	)
+
+    (general-define-key
+     :states '(normal insert visual emacs treemacs)
+     :keymaps 'override
+     ;; window movement bindings
+     "C-j" 'evil-window-down
+     "C-k" 'evil-window-up
+     "C-l" 'evil-window-right
+     "C-h" 'evil-window-left
+
+     ;; tab movement bindings
+     "C-<left>" 'tab-bar-switch-to-prev-tab
+     "C-<right>" 'tab-bar-switch-to-next-tab
+     )
+
+    (general-def 'visual override
+      "gc" 'comment-dwim 
+      "}" 'evil-forward-paragraph
+      "{" 'evil-backward-paragraph
+      )
+    )
+#+end_src
+
+* emacs configuration
+** Reload files after detecting disk change
+#+begin_src emacs-lisp
+
+  ;; also check in dired buffers
+  (setq global-auto-revert-non-file-buffers t)
+  ;; be quit about reverting
+  (setq auto-revert-verbose nil)
+  ;; check for changes every 5 seconds
+  (setq auto-revert-interval 5)
+  ;; enable the auto-revert mode
+  (global-auto-revert-mode 1)
+#+end_src
+** Disable Toolbar + Scrollbars
+#+begin_src emacs-lisp
+  (setq inhibit-startup-screen t)
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
+  (menu-bar-mode -1)
+#+end_src
+
+** Line Numbers
+#+begin_src emacs-lisp
+  (global-display-line-numbers-mode 1)
+  (setq display-line-numbers-type 'relative)
+#+end_src
+
+** Doom Theme
+#+begin_src emacs-lisp
+(use-package doom-themes
+  :ensure t
+  :config
+  ;; Global settings (defaults)
+  (setq doom-themes-enable-bold t    ; if nil, bold is universally disabled
+        doom-themes-enable-italic t) ; if nil, italics is universally disabled
+  (load-theme 'doom-one t)
+
+  ;; Enable flashing mode-line on errors
+  (doom-themes-visual-bell-config)
+  ;; Enable custom neotree theme (all-the-icons must be installed!)
+  (doom-themes-neotree-config)
+  ;; or for treemacs users
+  (setq doom-themes-treemacs-theme "doom-atom") ; use "doom-colors" for less minimal icon theme
+  (doom-themes-treemacs-config)
+  ;; Corrects (and improves) org-mode's native fontification.
+  (doom-themes-org-config))
+#+end_src
+
+** Fonts/Text
+#+begin_src emacs-lisp
+
+  ;; Text Wrap
+  (global-visual-line-mode nil)
+  ;; Font Style 
+  (setq-default font-height 125)
+  (setq-default line-spacing 0.2)
+
+  (let ((font-name "Lucida Console"))
+    (when (member font-name (font-family-list))
+      ;; Set the global default first
+      (set-face-attribute 'default nil
+                          :font font-name
+                          :height font-height
+                          :width 'expanded
+                          :weight 'regular)
+
+      ;; Explicitly ensure the minibuffer prompt matches
+      (set-face-attribute 'minibuffer-prompt nil
+                          :font font-name
+                          :height 120
+                          :weight 'bold) ; Keeping prompt bold for clarity
+
+      ;; If you use a completion UI that uses variable-pitch, 
+      ;; force it back to your fixed-width font here:
+      (set-face-attribute 'variable-pitch nil
+                          :font font-name
+                          :height font-height)))
+
+  (use-package nerd-icons-completion
+    :config
+    (nerd-icons-completion-mode))
+
+
+
+  ;; Make comments and keywords italics
+  (set-face-attribute 'font-lock-comment-face nil
+                      :slant 'italic)
+  (set-face-attribute 'font-lock-keyword-face nil
+                      :slant 'italic)
+
+  ;; Sane tab defaults
+  (setq-default indent-tabs-mode nil)
+  (setq-default tab-width 2)
+
+
+#+end_src
+
+* Completions
+
+** Vertico
+#+begin_src emacs-lisp
+  (use-package vertico
+  :custom
+  ;; (vertico-scroll-margin 0) ;; Different scroll margin
+  (vertico-count 10)
+  (vertico-cycle t) ;; Enable cycling for `vertico-next/previous'
+  (vertico-resize t) ;; Grow and shrink the Vertico minibuffer
+  :init
+  (savehist-mode 1)
+  (vertico-mode 1))
+
+#+end_src
+
+** orderless
+#+begin_src emacs-lisp
+(use-package orderless
+  :custom
+  ;; Configure a custom style dispatcher (see the Consult wiki)
+  ;; (orderless-style-dispatchers '(+orderless-consult-dispatch orderless-affix-dispatch))
+  ;; (orderless-component-separator #'orderless-escapable-split-on-space)
+  (completion-styles '(orderless basic))
+  (completion-category-overrides '((file (styles partial-completion))))
+  (completion-category-defaults nil) ;; Disable defaults, use our settings
+  (completion-pcm-leading-wildcard t)) ;; Emacs 31: partial-completion behaves like substrin
+#+end_src
+
+** consult
+#+begin_src emacs-lisp
+(use-package consult
+  :ensure t
+  :custom
+  (consult-preview-at-point-mode))
+#+end_src
+
+** Company Mode
+#+begin_src emacs-lisp
+  (use-package company
+    :ensure t
+    :demand t
+    :hook (after-init . global-company-mode)
+    :custom
+      (company-idle-delay 0.2)                ;; how long to wait before popup
+      (company-minimum-prefix-length 1)       ;; start completing after first char
+      (company-tooltip-align-annotations t)   ;; align annotation to the right
+      (company-selection-wrap-around t)       ;; cycle through candidates
+      (company-show-numbers t))                ;; quick selection via M-<number>
+
+#+end_src
+
+* Org Mode Configurations
+
+** Enable Table of Contents
+#+begin_src emacs-lisp
+  (use-package toc-org
+    :commands toc-org-enable
+    :init (add-hook 'org-mode-hook 'toc-org-enable))
+#+end_src
+
+** Org Bullets
+#+begin_src emacs-lisp
+  (add-hook 'org-mode-hook 'org-indent-mode)
+  (use-package org-bullets)
+  (add-hook 'org-mode-hook (lambda () (org-bullets-mode 1)))
+#+end_src
+
+* Plugins
+** eat (terminal emulator)
+#+begin_src emacs-lisp
+(use-package eat
+  :hook ((eshell-load . eat-eshell-mode)
+         (eshell-load . eat-eshell-visual-command-mode)))
+#+end_src
+** magit
+#+begin_src emacs-lisp
+        (use-package transient)
+        (use-package magit
+          :after transient)
+#+end_src
+
+** Snippets
+
+#+begin_src emacs-lisp
+  (use-package yasnippet
+    :config (yas-global-mode 1))
+#+end_src
+
+** LSP
+#+begin_src emacs-lisp
+  (use-package flycheck
+    :ensure t
+    :hook (lsp-mode . flycheck-mode))
+  (use-package
+    lsp-mode
+    :config
+    (setq lsp-headerline-breadcrumb-enable nil)
+    (setq lsp-diagnostics-provider :flycheck)
+    :init
+    :hook ((typescript-ts-mode . lsp)
+           (tsx-ts-mode . lsp)
+           (rust-ts-mode . lsp)
+           (json-ts-mode . lsp)
+           (lsp-mode . lsp-enable-which-key-integration))
+    :commands lsp)
+
+
+  (use-package lsp-ui
+    :custom
+    (lsp-ui-sideline-show-diagnostics t)
+    (lsp-ui-sideline-show-hover t)
+    (lsp-ui-sideline-ignore-duplicate t)
+    (lsp-ui-sideline-diagnostic-max-lines 2)
+    )
+#+end_src
+
+** Treesitter
+#+begin_src emacs-lisp
+(use-package treesit-auto
+  :custom
+  (treesit-auto-install 'prompt)
+  :config
+  (treesit-auto-add-to-auto-mode-alist 'all)
+  (global-treesit-auto-mode))
+#+end_src
+
+** Debugger
+#+begin_src emacs-lisp
+(use-package dap-mode)
+#+end_src
+
+** Treemacs
+#+begin_src emacs-lisp
+(use-package treemacs)
+(use-package treemacs-evil)
+(use-package treemacs-magit)
+#+end_src
+
+** Which-Key
+#+begin_src emacs-lisp
+  (use-package which-key
+    :config
+    (setq which-key-side-window-location 'bottom
+          which-key-sort-order #'which-key-key-order-alpha
+          which-key-sort-uppercase-first nil
+          which-key-add-column-padding 1
+          which-key-max-display-columns nil
+          which-key-min-display-lines 6
+          which-key-side-window-slot -10
+          which-key-side-window-max-height 0.25
+          which-key-idle-delay 0
+          which-key-max-description-length 25
+          which-key-allow-imprecise-window-fit t
+          which-key-separator " → ")
+    (which-key-mode 1))
+#+end_src
+
+** Paredit
+#+begin_src emacs-lisp
+(use-package paredit)
+#+end_src
+
+** Claude Code
+
+#+begin_src emacs-lisp
+  (use-package cond-let)
+
+  (elpaca (claude-code-ide :host github :repo "manzaltu/claude-code-ide.el")
+    (use-package claude-code-ide
+      :after cond-let
+      :bind ("C-c C-'" . claude-code-ide-menu)
+      :config
+      (claude-code-ide-emacs-tools-setup)))
+  (setq claude-code-ide-terminal-backend 'eat)
+#+end_src
+
+* Language Specific
+** Emacs lisp
+#+begin_src emacs-lisp
+  (add-hook 'emacs-lisp-mode-hook
+            (lambda ()
+              (eldoc-mode)
+              (flymake-mode)
+              (outline-minor-mode)
+              (imenu-add-menubar-index)
+              (paredit-mode)
+              (rainbow-delimiters-mode)))
+#+end_src
+** Clojure
+#+begin_src emacs-lisp
+  (use-package cider)
+  (use-package rainbow-delimiters)
+  (use-package clojure-ts-mode)
+
+  ;; Turn on rainbow delimeters and activate the LSP when entering
+  ;; a clojure file
+  (add-hook 'clojure-ts-mode-hook
+            (lambda ()
+              (paredit-mode)
+              (rainbow-delimiters-mode)
+              (lsp)))
+
+  ;; ;; For windows, I was getting an error on the jack-in about whatever shell intepreting the nrepl start cmd wrong
+  ;; (when (eq system-type 'windows-nt)
+  ;;   (setq cider-clojure-cli-parameters
+  ;;       "-Sdeps \'{:deps {nrepl/nrepl {:mvn/version \"1.5.1\"} cider/cider-nrepl {:mvn/version \"0.58.0\"}} :aliases {:cider/nrepl {:main-opts [\"-m\" \"nrepl.cmdline\" \"--middleware\" \"[cider.nrepl/cider-middleware]\"]}}}\' -M:cider/nrepl"))
+#+end_src
+** Ada
+#+begin_src emacs-lisp
+    (use-package ada-ts-mode
+      :hook ((json-ts-mode . lsp)))
+#+end_src
