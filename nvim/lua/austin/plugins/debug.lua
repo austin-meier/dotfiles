@@ -48,20 +48,8 @@ return {
 			end,
 			desc = "Debug: Step Out",
 		},
-		{
-			"<leader>b",
-			function()
-				require("dap").toggle_breakpoint()
-			end,
-			desc = "Debug: Toggle Breakpoint",
-		},
-		{
-			"<leader>B",
-			function()
-				require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: "))
-			end,
-			desc = "Debug: Set Breakpoint",
-		},
+		-- Leader-based debug bindings live under SPC c d in lua/austin/keybinds.lua
+		-- (mirroring the emacs `SPC c d` dap tree). F-keys kept for quick access.
 		-- Toggle to see last session result. Without this, you can't see session output in case of unhandled exception.
 		{
 			"<F7>",

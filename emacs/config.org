@@ -10,6 +10,7 @@
   - [[#cross-platform][cross-platform]]
   - [[#elpaca][elpaca]]
   - [[#evil-vim-mode][evil vim mode]]
+  - [[#dash][dash]]
   - [[#helpers][helpers]]
   - [[#keybindings][Keybindings]]
 - [[#emacs-configuration][emacs configuration]]
@@ -40,16 +41,12 @@
 - [[#language-specific][Language Specific]]
   - [[#emacs-lisp][Emacs lisp]]
   - [[#clojure][Clojure]]
+  - [[#racket][Racket]]
   - [[#ada][Ada]]
 
 * Priority
 
 TODO:
-- ripgrep/file searching by name and grep + project searching
-- paredit/smartparens
-- CIDER
-- color mode on eshell
-- debugger
 ** cross-platform
 #+begin_src emacs-lisp
   ;; for the eat terminal emulator we need stty.exe which git provides
@@ -58,17 +55,18 @@ TODO:
     (add-to-list 'exec-path "C:/Program Files/Git/usr/bin"))
 #+end_src
 
+
 ** elpaca
 #+begin_src emacs-lisp
-  (defvar elpaca-installer-version 0.11)
+  (defvar elpaca-installer-version 0.12)
   (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
   (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
-  (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
+  (defvar elpaca-sources-directory (expand-file-name "sources/" elpaca-directory))
   (defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
                                 :ref nil :depth 1 :inherit ignore
                                 :files (:defaults "elpaca-test.el" (:exclude "extensions"))
-                                :build (:not elpaca--activate-package)))
-  (let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
+                                :build (:not elpaca-activate)))
+  (let* ((repo  (expand-file-name "elpaca/" elpaca-sources-directory))
          (build (expand-file-name "elpaca/" elpaca-builds-directory))
          (order (cdr elpaca-order))
          (default-directory repo))
@@ -109,7 +107,7 @@ TODO:
   (elpaca elpaca-use-package
     ;; Enable use-package :ensure support for Elpaca.
     (elpaca-use-package-mode)
-    (setq elpaca-use-package-by-default t))
+    (setq use-package-always-ensure t))
 
   (elpaca-wait)
 
@@ -136,6 +134,10 @@ TODO:
     :after evil
     :ensure t
     :config
+    ;; In REPL-like buffers (eshell, cider, …) submit input from INSERT state.
+    ;; Default is 'normal, which binds insert-state RET to `newline' — that's
+    ;; why pressing Enter in eshell insert state just made a new line.
+    (setq evil-collection-repl-submit-state 'insert)
     (evil-collection-init))
 
   ;;Turns off elpaca-use-package-mode current declaration
@@ -144,8 +146,21 @@ TODO:
   (use-package emacs :ensure nil :config (setq ring-bell-function #'ignore))
 #+end_src
 
+** dash
+#+begin_src emacs-lisp
+(use-package dash)
+#+end_src
+
+** no-littering
+Keep ~user-emacs-directory~ tidy by redirecting package state files into
+=var/= and =etc/= subdirectories. Load early so other packages pick up the
+redirected paths.
+#+begin_src emacs-lisp
+(use-package no-littering
+  :demand t)
+#+end_src
+
 ** helpers
-Macros
 #+begin_src emacs-lisp
 (defmacro cmd! (&rest body)
   `(lambda () (interactive) ,@body))
@@ -189,7 +204,6 @@ Macros
 
          If not in a project, open a standard eshell in the current buffer's directory."
       (interactive)
-      (open-window-below)
       (let* ((proj (project-current))
              (default-dir (if proj
                               (project-root proj)
@@ -211,6 +225,12 @@ Macros
           (let ((default-directory default-dir))
             (eshell)))))
 
+    (defun my/eshell-project-or-current-dir-other-window ()
+      "Like `my/eshell-project-or-current-dir' but in a new window below."
+      (interactive)
+      (open-window-below)
+      (my/eshell-project-or-current-dir))
+
     (defun austin/git-stage-all ()
       "Stage all changes, including untracked files."
       (interactive)
@@ -224,6 +244,38 @@ Macros
       (let ((last-buf (other-buffer (current-buffer) t)))
         (tab-bar-new-tab)
         (switch-to-buffer last-buf)))
+
+  (defun austin/text-scale-increase ()
+    "Bump the default face height globally by 10 units (~1pt)."
+    (interactive)
+    (set-face-attribute 'default nil
+                        :height (+ (face-attribute 'default :height) 10)))
+
+  (defun austin/text-scale-decrease ()
+    "Reduce the default face height globally by 10 units."
+    (interactive)
+    (set-face-attribute 'default nil
+                        :height (- (face-attribute 'default :height) 10)))
+
+  (defun austin/text-scale-reset ()
+    "Reset the default face height to `font-height'."
+    (interactive)
+    (set-face-attribute 'default nil :height font-height))
+
+  (defun austin/cargo-build ()
+    "Run `cargo build' in the project root (cargo finds Cargo.toml itself)."
+    (interactive)
+    (compile "cargo build"))
+
+  (defun austin/cargo-run ()
+    "Run `cargo run' in the project root."
+    (interactive)
+    (compile "cargo run"))
+
+  (defun austin/cargo-test ()
+    "Run `cargo test' in the project root."
+    (interactive)
+    (compile "cargo test"))
 
   (defun austin/clj-debug-repl ()
     "Jack-in CIDER with Flow-Storm and nREPL middleware for Clojure only."
@@ -241,7 +293,31 @@ Macros
                                      \"-m\" \"nrepl.cmdline\" \"--middleware\" \"[cider.nrepl/cider-middleware]\"
                                      ]}}}"))
       (cider-jack-in (list :jack-in-cmd (concat "clj -Sforce -Sdeps \"" deps-map "\" -A:dev")))))
-  
+
+  ;; --- paredit wrap-at-tail helpers -----------------------------------------
+  ;; paredit's wrap commands drop you in at the HEAD of the new form: foo -> (|foo).
+  ;; These variants wrap and then move to the TAIL, ready to append: foo -> (foo |).
+  (defun austin/paredit-wrap--tail (wrap-fn)
+    "Run WRAP-FN (a paredit wrap command), then move point to the tail."
+    (funcall wrap-fn)
+    (ignore-errors (forward-sexp))
+    (insert " "))
+
+  (defun austin/paredit-wrap-round-tail ()
+    "Wrap the next form in () with point at the tail."
+    (interactive)
+    (austin/paredit-wrap--tail #'paredit-wrap-round))
+
+  (defun austin/paredit-wrap-square-tail ()
+    "Wrap the next form in [] with point at the tail."
+    (interactive)
+    (austin/paredit-wrap--tail #'paredit-wrap-square))
+
+  (defun austin/paredit-wrap-curly-tail ()
+    "Wrap the next form in {} with point at the tail."
+    (interactive)
+    (austin/paredit-wrap--tail #'paredit-wrap-curly))
+
 #+end_src
 
 ** Keybindings
@@ -259,6 +335,18 @@ Macros
       :global-prefix "M-SPC") ;; access leader in insert mode
 
     (austin/leader-key
+      ;; ai (claude-code-ide)
+      "a"   '(:ignore t :wk "ai")
+      "al"  '(claude-code-ide :wk "launch chat (right)")
+      "at"  '(claude-code-ide-toggle :wk "toggle window")
+      "ar"  '(claude-code-ide-resume :wk "resume session")
+      "ac"  '(claude-code-ide-continue :wk "continue last")
+      "aq"  '(claude-code-ide-stop :wk "stop session")
+      "ap"  '(claude-code-ide-send-prompt :wk "send prompt")
+      "a@"  '(claude-code-ide-insert-at-mentioned :wk "insert @file")
+      "as"  '(claude-code-ide-list-sessions :wk "list sessions")
+      "am"  '(claude-code-ide-menu :wk "transient menu")
+
       ;; buffers
       "SPC" '(switch-to-buffer :wk "switch buffer")
       "b"   '(:ignore t :wk "buffers")
@@ -269,22 +357,22 @@ Macros
       "br"  '(revert-buffer :wk "reload Buffer")
       
       ;; files menu
-      "f"   '(:ignore t :wk "files"-)
+      "f"   '(:ignore t :wk "files")
       "ff"  '(find-file :wk "find file")
       "fs"  '(consult-fd :wk "file search")
-      "fd"  '(dired-create-directory "create directory")
-      "fg"  '(consult-ripgrep t :wk "grep files")
-      "fs"  '(save-buffer :wk "save file") 
-      "fr"  '(rename-file :wk "rename file")
+      "fd"  '(dired-create-directory :wk "create directory")
+      "fg"  '(consult-ripgrep :wk "grep files")
+      "fw"  '(save-buffer :wk "save file")
+      "fr"  '(consult-recent-file :wk "recent files")
+      "fR"  '(rename-file :wk "rename file")
       "f:"  '(reload-config-file :wk "reload config file")
-      "fo"  '(:ignore t :wk "open files")
 
       "o"   '(:ignore t :wk "open")
       "od"  '(dired-jump :wk "open directory")
       "ot"  '(my/eshell-project-or-current-dir :wk "open terminal")
+      "oT"  '(my/eshell-project-or-current-dir-other-window :wk "open terminal (window)")
       "oc"  '(open-config-file :wk "open config file")
       "oh"  `(,(cmd! (dired "~")) :wk "open home")
-      "op"  '(project-switch-project :wk "open project")
       "of"  '(treemacs :wk "open finder")
 
       ;; projects menu
@@ -299,10 +387,10 @@ Macros
       "hd"  '(:ignore t :wk "describe")
       "hdb" 'describe-bindings
       "hdm" 'describe-mode
-      "hdf" 'describe-function
-      "hdk" 'describe-key
-      "hds" 'describe-symbol
-      "hdv" 'describe-variable
+      "hdf" 'helpful-callable
+      "hdk" 'helpful-key
+      "hds" 'helpful-symbol
+      "hdv" 'helpful-variable
 
       ;; window menu
       "w"   '(:ignore t :wk "window")
@@ -310,6 +398,16 @@ Macros
       "wj"  '(open-window-below :wk "open window below")
       "wq"  '(delete-window :wk "kill window")
       "wk"  '(delete-window :wk "kill window")
+      "ww"  '(ace-window :wk "select window (pick)")
+      "ws"  '(ace-swap-window :wk "swap window (smart)")
+      ;; move/swap the CURRENT window with its neighbour in a direction.
+      ;; Same h/j/k/l verbs as the C-h/j/k/l focus-movement bindings, so
+      ;; "move this window left" == windmove-swap-states-left.
+      "wm"  '(:ignore t :wk "move window")
+      "wmh" '(windmove-swap-states-left  :wk "move left")
+      "wmj" '(windmove-swap-states-down  :wk "move down")
+      "wmk" '(windmove-swap-states-up    :wk "move up")
+      "wml" '(windmove-swap-states-right :wk "move right")
 
       ;; tabs
       "t"   '(:ignore t :wk "tabs")
@@ -326,6 +424,7 @@ Macros
       
       ;; emacs bindings
       ":"   '(execute-extended-command :wk "m-x")
+      ";"   '(embark-act :wk "embark act")
       "x"   '(eval-expression :wk "emacs-eval")
 
       ;; magit
@@ -354,6 +453,7 @@ Macros
       "car" '(lsp-rename :wk "rename")
       "cao" '(lsp-organize-imports :wk "organize imports")
       "caf" '(lsp-format-buffer :wk "format buffer")
+      "caF" '(austin/toggle-format-on-save :wk "toggle format on save")
       "cas" '(lsp-signature-activate :wk "signature help")
 
       "cg"   '(:ignore t :wk "goto")
@@ -414,14 +514,22 @@ Macros
       )
 
     (austin/leader-key
-      :keymaps 'emacs-lisp-mode-map
-      :keymaps 'lisp-interaction-mode-map
-      "e" '(:ignore t :which-key "eval")
-      "eb" '(eval-buffer :which-key "eval buffer")
-      "er" '(eval-region :which-key "eval region")
-      "ee" '(eval-last-sexp :which-key "eval last sexp")
-      "ed" '(eval-defun :which-key "eval defun"))
+      :keymaps '(emacs-lisp-mode-map lisp-interaction-mode-map)
+      "e" '(:ignore t :wk "eval")
+      "eb" '(eval-buffer :wk "eval buffer")
+      "er" '(eval-region :wk "eval region")
+      "ee" '(eval-last-sexp :wk "eval last sexp")
+      "ed" '(eval-defun :wk "eval defun"))
 
+
+    (austin/leader-key
+      :keymaps 'rust-ts-mode-map
+      "e"  '(:ignore t :wk "build/run")
+      "eb" '(austin/cargo-build :wk "cargo build")
+      "er" '(austin/cargo-run :wk "cargo run")
+      "et" '(austin/cargo-test :wk "cargo test")
+      "eR" '(recompile :wk "recompile last")
+      "ec" '(project-compile :wk "project compile…"))
 
     (austin/leader-key
       :keymaps 'clojure-ts-mode-map
@@ -443,8 +551,28 @@ Macros
 
   	)
 
+    (austin/leader-key
+      :keymaps 'racket-mode-map
+      "e"  '(:ignore t :wk "eval")
+      "ee" '(racket-send-last-sexp :wk "eval last sexp")
+      "ed" '(racket-send-definition :wk "eval defun")
+      "er" '(racket-send-region :wk "eval region")
+      "eb" '(racket-run :wk "run file in repl")
+      "eR" '(racket-run-and-switch-to-repl :wk "run + focus repl")
+      "et" '(racket-test :wk "run tests")
+      "ec" '(racket-describe :wk "describe at point")
+      "eg" '(racket-xp-describe :wk "doc (xp)")
+      "ej" '(racket-xp-visit-definition :wk "jump to def")
+      "ep" '(:ignore t :wk "repl")
+      "epr" '(racket-repl :wk "open repl")
+      "epk" '(racket-repl-exit :wk "kill repl")
+      "epc" '(racket-repl-clear :wk "clear repl"))
+
+    ;; Window + tab movement. NOTE: deliberately NOT bound in insert state —
+    ;; insert-state C-h/j/k/l and C-S-h/l are reused for structural lisp editing
+    ;; (see the structural-editing block below). Drop to normal to move windows.
     (general-define-key
-     :states '(normal insert visual emacs treemacs)
+     :states '(normal visual emacs treemacs)
      :keymaps 'override
      ;; window movement bindings
      "C-j" 'evil-window-down
@@ -455,7 +583,43 @@ Macros
      ;; tab movement bindings
      "C-<left>" 'tab-bar-switch-to-prev-tab
      "C-<right>" 'tab-bar-switch-to-next-tab
-     )
+     ;; vim-style tab cycling (mirrors C-h / C-l window movement)
+     "C-S-h" 'tab-bar-switch-to-prev-tab
+     "C-S-l" 'tab-bar-switch-to-next-tab)
+
+    ;; Font size (browser-style; affects all frames/buffers). Kept in every
+    ;; state, including insert — these don't collide with structural editing.
+    (general-define-key
+     :states '(normal insert visual emacs treemacs)
+     :keymaps 'override
+     "C-="  'austin/text-scale-increase
+     "C-+"  'austin/text-scale-increase
+     "C--"  'austin/text-scale-decrease
+     "C-0"  'austin/text-scale-reset)
+
+    ;; --- Structural editing in INSERT state (paredit commands, no paredit-mode) ---
+    ;; Scoped to `lispyville-mode-map' so they're live ONLY in lisp buffers; the
+    ;; window/tab keys above were dropped from insert state so these win here.
+    ;; Mnemonics: vim directions for slurp, Shift = barf (expel, the opposite of
+    ;; slurp), C-k raises a form "up" a level, C-(/C-) wrap the next form and drop
+    ;; you in at the head / tail. Requires GUI Emacs (C-S-l, C-(, C-{ are
+    ;; indistinguishable in a terminal).
+    (with-eval-after-load 'lispyville
+      (general-define-key
+       :states 'insert
+       :keymaps 'lispyville-mode-map
+       "C-l"   'paredit-forward-slurp-sexp
+       "C-S-l" 'paredit-forward-barf-sexp
+       "C-h"   'paredit-backward-slurp-sexp
+       "C-S-h" 'paredit-backward-barf-sexp
+       "C-k"   'paredit-raise-sexp
+       "C-("   'paredit-wrap-round
+       "C-)"   'austin/paredit-wrap-round-tail
+       "C-{"   'paredit-wrap-curly
+       "C-}"   'austin/paredit-wrap-curly-tail
+       ;; C-[ is read as ESC by Emacs, so square-wrap lives on Meta instead.
+       "M-["   'paredit-wrap-square
+       "M-]"   'austin/paredit-wrap-square-tail))
 
     (general-def 'visual override
       "gc" 'comment-dwim 
@@ -471,12 +635,46 @@ Macros
 
   ;; also check in dired buffers
   (setq global-auto-revert-non-file-buffers t)
-  ;; be quit about reverting
+  ;; be quiet about reverting
   (setq auto-revert-verbose nil)
-  ;; check for changes every 5 seconds
-  (setq auto-revert-interval 5)
+  ;; use OS file-notify watchers instead of polling — faster and more responsive
+  (setq auto-revert-use-notify t)
   ;; enable the auto-revert mode
   (global-auto-revert-mode 1)
+#+end_src
+
+** Auto-save & temp files
+Drop the side-car temp files that cause stale "recover this file?" prompts
+and instead auto-save the *real* file after a short idle, like a modern
+editor. With these off, a non-clean exit (WSL/Windows killing Emacs) leaves
+nothing behind to recover.
+- =#file#= → auto-save snapshots (the source of the recovery prompt)
+- =.#file= → lock symlinks
+#+begin_src emacs-lisp
+  (setq auto-save-default nil)           ;; no #file# auto-save files
+  (setq create-lockfiles nil)            ;; no .#file lock symlinks
+  (setq auto-save-list-file-prefix nil)  ;; no recover-session index
+
+  ;; Auto-save by writing the visited file itself after 10s of idle.
+  (setq auto-save-visited-interval 10)
+  (auto-save-visited-mode 1)
+#+end_src
+
+** Performance
+Low-risk, high-impact one-liners. ~gcmh~ lives under Plugins.
+#+begin_src emacs-lisp
+  ;; Handle minified / pathologically long lines gracefully instead of freezing.
+  (global-so-long-mode 1)
+
+  ;; Skip font-cache compaction during GC. Relevant with nerd-icons installed,
+  ;; since rescanning icon fonts on every GC is slow.
+  (setq inhibit-compacting-font-caches t)
+
+  ;; Skip implicit frame resizes triggered by font / mode changes — faster startup.
+  (setq frame-inhibit-implied-resize t)
+
+  ;; Don't pop the *Warnings* buffer for every native-compilation warning.
+  (setq native-comp-async-report-warnings-errors 'silent)
 #+end_src
 ** Disable Toolbar + Scrollbars
 #+begin_src emacs-lisp
@@ -484,6 +682,9 @@ Macros
   (tool-bar-mode -1)
   (scroll-bar-mode -1)
   (menu-bar-mode -1)
+  ;; Start every frame maximized — avoids the "frame taller than the screen"
+  ;; problem when font height makes the default row count overflow.
+  (add-to-list 'default-frame-alist '(fullscreen . maximized))
 #+end_src
 
 ** Line Numbers
@@ -513,16 +714,28 @@ Macros
   (doom-themes-org-config))
 #+end_src
 
+** Doom Modeline
+Modern replacement for the default modeline. Hides the minor-mode flood by
+default; use ~M-x describe-mode~ when you actually need to inspect active modes.
+#+begin_src emacs-lisp
+(use-package doom-modeline
+  :init (doom-modeline-mode 1)
+  :custom
+  (doom-modeline-height 25)
+  (doom-modeline-bar-width 3)
+  (doom-modeline-minor-modes nil)        ;; suppress minor-mode lighters
+  (doom-modeline-buffer-encoding nil)    ;; hide UTF-8 / LF tag
+  (doom-modeline-buffer-file-name-style 'truncate-with-project))
+#+end_src
+
 ** Fonts/Text
 #+begin_src emacs-lisp
 
-  ;; Text Wrap
-  (global-visual-line-mode nil)
-  ;; Font Style 
-  (setq-default font-height 125)
+  ;; Font Style
+  (defvar font-height 90)
   (setq-default line-spacing 0.2)
 
-  (let ((font-name "Lucida Console"))
+  (let ((font-name "AdwaitaMono Nerd Font"))
     (when (member font-name (font-family-list))
       ;; Set the global default first
       (set-face-attribute 'default nil
@@ -534,7 +747,7 @@ Macros
       ;; Explicitly ensure the minibuffer prompt matches
       (set-face-attribute 'minibuffer-prompt nil
                           :font font-name
-                          :height 120
+                          :height font-height
                           :weight 'bold) ; Keeping prompt bold for clarity
 
       ;; If you use a completion UI that uses variable-pitch, 
@@ -595,8 +808,49 @@ Macros
 #+begin_src emacs-lisp
 (use-package consult
   :ensure t
+  :init (recentf-mode 1)
   :custom
   (consult-preview-at-point-mode))
+#+end_src
+
+** marginalia
+Adds annotations (docstrings, file sizes, key bindings) next to vertico
+candidates. Pairs with consult/embark.
+
+~compat~ is pinned to upstream GitHub because the GNU ELPA copy lags behind
+the version marginalia/embark require (they need compat 31, ELPA still ships
+30.x).
+#+begin_src emacs-lisp
+(use-package compat
+  :ensure (compat :host github :repo "emacs-compat/compat"))
+
+(use-package marginalia
+  :after compat
+  :init (marginalia-mode))
+#+end_src
+
+** embark
+"Right-click menu" for the minibuffer and for symbols at point. ~embark-act~
+opens a contextual action menu for the current candidate or thing at point;
+~embark-dwim~ runs the most-likely action without prompting; ~embark-export~
+snapshots the current candidate list into a real major-mode buffer (e.g.
+ripgrep results → editable grep buffer with wgrep).
+
+Bindings: =C-;= and =SPC ;= for ~embark-act~, =M-.= for ~embark-dwim~
+(stays compatible with xref's jump-to-definition on code symbols).
+#+begin_src emacs-lisp
+(use-package embark
+  :after compat
+  :bind (("C-;" . embark-act)
+         ("M-." . embark-dwim))
+  :init
+  ;; Replace the built-in prefix help with embark's searchable variant
+  ;; (gives a vertico picker when you pause on a prefix key).
+  (setq prefix-help-command #'embark-prefix-help-command))
+
+(use-package embark-consult
+  :after (embark consult)
+  :hook (embark-collect-mode . consult-preview-at-point-mode))
 #+end_src
 
 ** Company Mode
@@ -604,14 +858,36 @@ Macros
   (use-package company
     :ensure t
     :demand t
-    :hook (after-init . global-company-mode)
     :custom
       (company-idle-delay 0.2)                ;; how long to wait before popup
       (company-minimum-prefix-length 1)       ;; start completing after first char
       (company-tooltip-align-annotations t)   ;; align annotation to the right
       (company-selection-wrap-around t)       ;; cycle through candidates
-      (company-show-numbers t))                ;; quick selection via M-<number>
+      (company-show-numbers t)                 ;; quick selection via M-<number>
+    :config
+      ;; Enable directly, NOT via an `after-init' hook. Under elpaca packages
+      ;; load asynchronously and `after-init-hook' has already run by the time
+      ;; company finishes loading, so an after-init hook would never fire.
+      (global-company-mode 1))
 
+#+end_src
+
+** Prescient (completion sorting)
+~orderless~ matches candidates but deliberately does *not* rank them, so
+company shows matches in the back end's order — e.g. typing =req= buries
+=require= under =custodian-require-memory=, =dynamic-require=, etc.
+~prescient~ adds the missing sort: *recency → frequency → length*. Shorter
+candidates float up (so =require= leads on length alone), and anything you
+pick is remembered and promoted next time. orderless still does the matching;
+prescient only reorders. ~prescient-persist-mode~ keeps that history across
+sessions.
+#+begin_src emacs-lisp
+  (use-package prescient
+    :config (prescient-persist-mode 1))
+
+  (use-package company-prescient
+    :after (company prescient)
+    :config (company-prescient-mode 1))
 #+end_src
 
 * Org Mode Configurations
@@ -623,11 +899,28 @@ Macros
     :init (add-hook 'org-mode-hook 'toc-org-enable))
 #+end_src
 
-** Org Bullets
+** org-modern
+Modernized rendering for headlines, list bullets, code blocks, tables, and
+keywords. Supersedes ~org-bullets~ (which only styled stars).
 #+begin_src emacs-lisp
   (add-hook 'org-mode-hook 'org-indent-mode)
-  (use-package org-bullets)
-  (add-hook 'org-mode-hook (lambda () (org-bullets-mode 1)))
+  (use-package org-modern
+    :hook ((org-mode . org-modern-mode)
+           (org-agenda-finalize . org-modern-agenda)))
+#+end_src
+
+** org-fragtog (auto LaTeX preview)
+Renders LaTeX fragments to images when the cursor leaves them and unrenders
+them when you move back in. No more manual ~C-c C-x C-l~.
+
+Gated on the ~latex~ binary being on PATH — if you don't have a TeX
+distribution installed, this use-package form skips entirely (no install,
+no hook, no errors when moving past a fragment). Install LaTeX and restart
+Emacs to enable.
+#+begin_src emacs-lisp
+(use-package org-fragtog
+  :if (executable-find "latex")
+  :hook (org-mode . org-fragtog-mode))
 #+end_src
 
 * Plugins
@@ -639,7 +932,8 @@ Macros
 #+end_src
 ** magit
 #+begin_src emacs-lisp
-        (use-package transient)
+        (use-package transient
+          :ensure (:host github :repo "magit/transient"))
         (use-package magit
           :after transient)
 #+end_src
@@ -652,21 +946,77 @@ Macros
 #+end_src
 
 ** LSP
+Each language hook is gated on its server being on =PATH= — missing servers
+are a silent no-op instead of an error when you open a file. See [[file:setup.md][setup.md]]
+for install commands.
 #+begin_src emacs-lisp
   (use-package flycheck
     :ensure t
     :hook (lsp-mode . flycheck-mode))
+
+  (defun austin/lsp-ts ()
+    "Start `lsp' only if typescript-language-server is on PATH."
+    (when (executable-find "typescript-language-server") (lsp)))
+
+  (defun austin/lsp-rust ()
+    "Start `lsp' only if rust-analyzer is on PATH."
+    (when (executable-find "rust-analyzer") (lsp)))
+
+  (defun austin/lsp-json ()
+    "Start `lsp' only if a JSON language server is on PATH."
+    (when (or (executable-find "vscode-json-language-server")
+              (executable-find "vscode-json-languageserver"))
+      (lsp)))
+
+  ;; --- Format on save (all LSP buffers) -------------------------------------
+  (defvar austin/format-on-save t
+    "When non-nil, format LSP buffers on explicit save via `lsp-format-buffer'.")
+
+  (defun austin/toggle-format-on-save ()
+    "Toggle automatic format-on-save for LSP buffers."
+    (interactive)
+    (setq austin/format-on-save (not austin/format-on-save))
+    (message "Format on save %s" (if austin/format-on-save "enabled" "disabled")))
+
+  (defun austin/lsp-format-on-real-save ()
+    "Format the buffer via lsp on an explicit save command.
+  Respects `austin/format-on-save' and skips `auto-save-visited-mode' timer
+  saves (which also run `before-save-hook'), so the buffer isn't reformatted
+  every few seconds while you're mid-edit."
+    (when (and austin/format-on-save
+               (bound-and-true-p lsp-mode)
+               (memq this-command
+                     '(save-buffer save-some-buffers evil-write evil-write-all)))
+      (lsp-format-buffer)))
+
+  (defun austin/lsp-enable-format-on-save ()
+    "Install the format-on-save hook buffer-locally (for `lsp-mode-hook')."
+    (add-hook 'before-save-hook #'austin/lsp-format-on-real-save nil t))
+
   (use-package
     lsp-mode
+    :init
+    ;; Performance tuning for lsp-mode
+    (setq read-process-output-max (* 1024 1024)) ;; 1MB pipe buffer
+    (setq gc-cons-threshold 100000000)           ;; 100MB GC threshold
     :config
     (setq lsp-headerline-breadcrumb-enable nil)
     (setq lsp-diagnostics-provider :flycheck)
-    :init
-    :hook ((typescript-ts-mode . lsp)
-           (tsx-ts-mode . lsp)
-           (rust-ts-mode . lsp)
-           (json-ts-mode . lsp)
-           (lsp-mode . lsp-enable-which-key-integration))
+    (setq lsp-auto-guess-root t)
+    ;; Don't let the server reformat as you type (cljfmt strips the space in
+    ;; "(+ |)" -> "(+)"). Formatting happens on save instead — see Clojure.
+    (setq lsp-enable-on-type-formatting nil)
+    ;; Keep indentation local to the major mode (clojure-ts-mode's tree-sitter
+    ;; indenter). With this left at its default t, lsp-mode routes `indent-region'
+    ;; through the server, so every electric-/aggressive-indent reindent becomes a
+    ;; cljfmt reformat that strips the space in a half-typed "(defn |)" -> "(defn)".
+    (setq lsp-enable-indentation nil)
+    :hook ((typescript-ts-mode . austin/lsp-ts)
+           (tsx-ts-mode . austin/lsp-ts)
+           (rust-ts-mode . austin/lsp-rust)
+           (json-ts-mode . austin/lsp-json)
+           (lsp-mode . lsp-enable-which-key-integration)
+           (lsp-mode . austin/lsp-enable-format-on-save))
     :commands lsp)
 
 
@@ -680,7 +1030,24 @@ Macros
 #+end_src
 
 ** Treesitter
+~clojure-ts-mode~ pulls in the =markdown-inline= and =regex= grammars as
+embedded parsers (to fontify docstrings and regex literals). Upstream
+=markdown-inline= now generates a parser at tree-sitter ABI 15, which Emacs
+30.x (max ABI 14) rejects with a "version-mismatch" warning the moment you
+open a =.clj= file. Pin the markdown grammars to a tag that still emits an
+ABI ≤14 parser so reinstalls stay compatible. Drop these once Emacs ships
+support for ABI 15.
 #+begin_src emacs-lisp
+(with-eval-after-load 'treesit
+  (dolist (src '((markdown
+                  "https://github.com/tree-sitter-grammars/tree-sitter-markdown"
+                  "v0.3.2" "tree-sitter-markdown/src")
+                 (markdown-inline
+                  "https://github.com/tree-sitter-grammars/tree-sitter-markdown"
+                  "v0.3.2" "tree-sitter-markdown-inline/src")))
+    (setf (alist-get (car src) treesit-language-source-alist)
+          (cdr src))))
+
 (use-package treesit-auto
   :custom
   (treesit-auto-install 'prompt)
@@ -696,7 +1063,12 @@ Macros
 
 ** Treemacs
 #+begin_src emacs-lisp
-(use-package treemacs)
+(use-package treemacs
+  :config
+  (treemacs-follow-mode 1)
+  (treemacs-project-follow-mode 1)
+  (treemacs-filewatch-mode 1)
+  (treemacs-git-mode 'deferred))
 (use-package treemacs-evil)
 (use-package treemacs-magit)
 #+end_src
@@ -720,23 +1092,175 @@ Macros
     (which-key-mode 1))
 #+end_src
 
-** Paredit
+** Electric Pair (auto-close delimiters)
+Replaces paredit. =electric-pair-local-mode= (built-in) auto-inserts matching
+=()=, =[]=, ={}=, and =""= and is enabled per language in the mode hooks (see
+[[#language-specific][Language Specific]]); lispyville handles all structural
+editing. paredit was dropped because its open-paren command reindents via an
+unguarded =backward-up-list=, which =clojure-ts-mode='s tree-sitter syntax
+doesn't satisfy — every "(" raised =Scan error: Unbalanced parentheses=.
+
+** Lispyville
+Evil-aware structural editing built on lispy. We keep the key theme minimal:
+the explicit structural *commands* (slurp/barf, wrap, drag/raise/splice) now
+live in INSERT state via paredit (see Paredit / Keybindings → structural
+editing), so the only themes enabled here are the ones that aren't redundant
+with that:
+- ~operators~ — makes evil's =d= / =c= / =y= sexp-safe so normal-state edits
+  don't shred unbalanced parens. This is transparent edit *safety*, not a
+  command you invoke, which is why it stays.
+- ~c-w~ — sexp-aware =C-w= (delete-backward-word) in insert state.
+
+Dropped: ~slurp/barf-cp~, ~wrap~ and ~additional~ (redundant with the insert
+bindings), plus ~additional-movement~ (this restores evil's default =H= / =L=
+and =[= / =]= motions). Note ~lispyville-mode~ itself stays *on* — the paredit
+insert bindings are scoped to ~lispyville-mode-map~.
 #+begin_src emacs-lisp
-(use-package paredit)
+(use-package lispyville
+  :hook ((emacs-lisp-mode       . lispyville-mode)
+         (lisp-interaction-mode . lispyville-mode)
+         (clojure-ts-mode       . lispyville-mode))
+  :config
+  (lispyville-set-key-theme
+   '(operators
+     c-w)))
+#+end_src
+
+** Paredit (structural-editing commands only)
+We deliberately do *not* enable ~paredit-mode~ — its electric open-paren
+reindents via an unguarded ~backward-up-list~, which is exactly what raised
+=Scan error: Unbalanced parentheses= under ~clojure-ts-mode='s tree-sitter
+syntax (see Electric Pair). Instead we pull paredit in only for its
+*commands*, bound in INSERT state for lisp buffers (slurp/barf/raise/wrap —
+see Keybindings → structural editing). ~:commands~ creates autoloads so
+paredit loads lazily on first use, never turning on the mode.
+
+lispyville is kept for what these commands can't give: sexp-safe evil
+operators (=d=/=c=/=y=) and structural motions in normal/visual state. The two
+are complementary — lispyville owns normal state, paredit owns insert state.
+#+begin_src emacs-lisp
+  (use-package paredit
+    :commands (paredit-forward-slurp-sexp
+               paredit-backward-slurp-sexp
+               paredit-forward-barf-sexp
+               paredit-backward-barf-sexp
+               paredit-raise-sexp
+               paredit-wrap-round
+               paredit-wrap-square
+               paredit-wrap-curly))
+#+end_src
+
+** Aggressive Indent
+Auto-reindents the surrounding form as you type — feels right in lisps.
+#+begin_src emacs-lisp
+(use-package aggressive-indent
+  :hook ((emacs-lisp-mode       . aggressive-indent-mode)
+         (lisp-interaction-mode . aggressive-indent-mode)
+         (clojure-ts-mode       . aggressive-indent-mode)))
+#+end_src
+
+** Rainbow Delimiters
+Colorizes matching parens by nesting depth across all the lisps. Declared here
+with a single ~:hook~ list (like Lispyville / Aggressive Indent above) rather
+than a bare ~use-package~. The ~:hook~ form makes use-package create an
+*autoload* for ~rainbow-delimiters-mode~, so the function is defined the moment
+any language hook references it. A bare declaration skips that autoload — which
+is why referencing it from another package's ~:hook~ raised "Symbol's function
+definition is void".
+#+begin_src emacs-lisp
+(use-package rainbow-delimiters
+  :hook ((emacs-lisp-mode       . rainbow-delimiters-mode)
+         (lisp-interaction-mode . rainbow-delimiters-mode)
+         (clojure-ts-mode       . rainbow-delimiters-mode)
+         (racket-mode           . rainbow-delimiters-mode)
+         (racket-repl-mode      . rainbow-delimiters-mode)))
+#+end_src
+
+** Helpful
+Richer ~describe-*~ buffers (source snippets, key bindings, references).
+Wired up under the =SPC h d= prefix.
+#+begin_src emacs-lisp
+(use-package helpful)
+#+end_src
+
+** Avy
+Jump to any character on screen with a 2-char prompt. Bound to =s= in normal
+and visual evil states — works across all visible windows/lines, not just the
+current line like vim's built-in =s=.
+#+begin_src emacs-lisp
+(use-package avy
+  :after general
+  :config
+  (general-define-key
+   :states '(normal visual)
+   "s" 'avy-goto-char-timer))
+#+end_src
+
+** Ace Window
+Pick-a-window manipulation (the "smart" half of window management; the
+directional half is built-in ~windmove-swap-states-*~, wired under =SPC w m=).
+
+~ace-swap-window~ (=SPC w s=) is context-aware: with exactly two windows it
+just swaps them; with more it overlays a letter on each window so you choose
+the swap target. ~ace-window~ (=SPC w w=) jumps focus the same way. =aw-keys=
+puts the labels on the home row, and =aw-scope 'frame= keeps labels confined
+to the current frame (ignoring other monitors / tab-bar tabs).
+#+begin_src emacs-lisp
+(use-package ace-window
+  :config
+  (setq aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l)
+        aw-scope 'frame))
+#+end_src
+
+** GCMH (Garbage Collector Magic Hack)
+Defers garbage collection to idle time so interactive operations (typing,
+completion, scrolling) don't pause for GC. Pairs with the lsp-mode
+=gc-cons-threshold= bump.
+#+begin_src emacs-lisp
+(use-package gcmh
+  :init (gcmh-mode 1))
+#+end_src
+
+** Dashboard (startup screen)
+Recents, projects, agenda, and bookmarks on launch. Plays nicely with evil
+out of the box (unlike enlight). Uses ~project.el~ as the project backend
+and ~nerd-icons~ for entry icons.
+#+begin_src emacs-lisp
+(use-package dashboard
+  :demand t
+  :custom
+  (dashboard-startup-banner 'logo)
+  (dashboard-center-content t)
+  (dashboard-items '((recents   . 5)
+                     (projects  . 5)
+                     (agenda    . 5)
+                     (bookmarks . 3)))
+  (dashboard-projects-backend 'project-el)
+  (dashboard-icon-type 'nerd-icons)
+  (dashboard-set-heading-icons t)
+  (dashboard-set-file-icons t)
+  (dashboard-week-agenda nil)        ;; today only, not the whole week
+  :config
+  (dashboard-setup-startup-hook)
+  (setq initial-buffer-choice (lambda () (get-buffer-create dashboard-buffer-name))))
 #+end_src
 
 ** Claude Code
-
+Only loads when the =claude= CLI is on =PATH= — install instructions in
+[[file:setup.md][setup.md]]. Restart Emacs after installing the CLI to pick up the package.
 #+begin_src emacs-lisp
-  (use-package cond-let)
+  (when (executable-find "claude")
+    (use-package cond-let)
 
-  (elpaca (claude-code-ide :host github :repo "manzaltu/claude-code-ide.el")
-    (use-package claude-code-ide
-      :after cond-let
-      :bind ("C-c C-'" . claude-code-ide-menu)
-      :config
-      (claude-code-ide-emacs-tools-setup)))
-  (setq claude-code-ide-terminal-backend 'eat)
+    (elpaca (claude-code-ide :host github :repo "manzaltu/claude-code-ide.el")
+      (use-package claude-code-ide
+        :after cond-let
+        :bind ("C-c C-'" . claude-code-ide-menu)
+        :custom
+        (claude-code-ide-window-side 'right)  ;; chat window opens on the right
+        :config
+        (claude-code-ide-emacs-tools-setup)))
+    (setq claude-code-ide-terminal-backend 'eat))
 #+end_src
 
 * Language Specific
@@ -748,21 +1272,34 @@ Macros
               (flymake-mode)
               (outline-minor-mode)
               (imenu-add-menubar-index)
-              (paredit-mode)
-              (rainbow-delimiters-mode)))
+              (electric-pair-local-mode)))
 #+end_src
 ** Clojure
 #+begin_src emacs-lisp
   (use-package cider)
-  (use-package rainbow-delimiters)
   (use-package clojure-ts-mode)
 
-  ;; Turn on rainbow delimeters and activate the LSP when entering
-  ;; a clojure file
+  ;; Surface clj-kondo lints via flycheck. Gated on the `clj-kondo' binary
+  ;; being on PATH so a missing install is a silent no-op rather than a load
+  ;; error. Install with your package manager (`brew install borkdude/brew/clj-kondo'
+  ;; / `pacman -S clj-kondo' / etc.) and restart to enable.
+  (use-package flycheck-clj-kondo
+    :after flycheck
+    :if (executable-find "clj-kondo")
+    :config (require 'flycheck-clj-kondo))
+
+  ;; Turn on rainbow delimeters and activate the LSP when entering a clojure
+  ;; file. (Format-on-save is configured globally for all LSP buffers; see LSP.)
+  ;; NOTE: paredit is intentionally NOT used here. Its open-paren command
+  ;; reindents via an unguarded `backward-up-list', which clojure-ts-mode's
+  ;; tree-sitter syntax doesn't satisfy, so every "(" raised
+  ;; `Scan error: Unbalanced parentheses'. `electric-pair-local-mode' handles
+  ;; auto-closing delimiters, and lispyville covers structural editing
+  ;; (slurp/barf/wrap/etc.).
   (add-hook 'clojure-ts-mode-hook
             (lambda ()
-              (paredit-mode)
-              (rainbow-delimiters-mode)
+              (electric-pair-local-mode)
+              (add-hook 'before-save-hook #'austin/lsp-format-on-real-save nil t)
               (lsp)))
 
   ;; ;; For windows, I was getting an error on the jack-in about whatever shell intepreting the nrepl start cmd wrong
@@ -770,8 +1307,30 @@ Macros
   ;;   (setq cider-clojure-cli-parameters
   ;;       "-Sdeps \'{:deps {nrepl/nrepl {:mvn/version \"1.5.1\"} cider/cider-nrepl {:mvn/version \"0.58.0\"}} :aliases {:cider/nrepl {:main-opts [\"-m\" \"nrepl.cmdline\" \"--middleware\" \"[cider.nrepl/cider-middleware]\"]}}}\' -M:cider/nrepl"))
 #+end_src
+** Racket
+~racket-mode~ provides both editing and an integrated REPL (no nREPL/jack-in
+dance — ~racket-run~ launches a back-end process directly). ~racket-xp-mode~
+is the elegant part: a background analyzer giving jump-to-def, on-hover docs,
+identifier highlighting, and completion without an external LSP server. It only
+needs the ~racket~ binary on PATH at REPL time.
+#+begin_src emacs-lisp
+  (use-package racket-mode
+    :hook ((racket-mode      . racket-xp-mode)            ;; bg analysis: def/docs/complete
+           (racket-mode      . electric-pair-local-mode)
+           (racket-mode      . lispyville-mode)
+           (racket-mode      . aggressive-indent-mode)
+           (racket-repl-mode . electric-pair-local-mode))
+    :config
+    ;; Type "[" and get "[" — racket idiomatically uses square brackets for
+    ;; let-bindings/cond clauses, and this DTRT based on context.
+    (setq racket-smart-open-bracket-mode t))
+#+end_src
 ** Ada
 #+begin_src emacs-lisp
-    (use-package ada-ts-mode
-      :hook ((json-ts-mode . lsp)))
+  (defun austin/lsp-ada ()
+    "Start `lsp' only if ada_language_server is on PATH."
+    (when (executable-find "ada_language_server") (lsp)))
+
+  (use-package ada-ts-mode
+    :hook ((ada-ts-mode . austin/lsp-ada)))
 #+end_src

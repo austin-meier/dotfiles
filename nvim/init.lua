@@ -31,5 +31,6 @@ require("lazy").setup({
 		{ import = "austin.plugins" },
 	},
 
-	checker = { enabled = true },
+	-- Don't check for plugin updates on every launch; run :Lazy update manually.
+	checker = { enabled = false },
 })

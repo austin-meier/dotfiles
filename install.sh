@@ -62,6 +62,51 @@ install_zsh_plugins_git() {
   done
 }
 
+# ─── Neovim (>= 0.10) ─────────────────────────────────────────────────────────
+# apt ships 0.6–0.9 and dnf lagged until Fedora 41, so distro packages can't be
+# trusted for >= 0.10. Use the official prebuilt tarball on Linux (same route for
+# Ubuntu, Fedora, Arch) and brew on macOS. Skip if a new-enough nvim is present.
+nvim_version_ok() {
+  command -v nvim &>/dev/null || return 1
+  local v major minor
+  v=$(nvim --version | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+  major=${v%%.*}; minor=${v##*.}
+  (( major > 0 )) || (( minor >= 10 ))
+}
+
+install_neovim_tarball() {
+  local arch asset tmp
+  case "$(uname -m)" in
+    x86_64)        arch="x86_64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *) warn "No Neovim tarball for $(uname -m) — install manually from neovim.io"; return 1 ;;
+  esac
+  asset="nvim-linux-${arch}.tar.gz"
+  info "Downloading latest Neovim ($asset)..."
+  tmp=$(mktemp -d)
+  curl -fL "https://github.com/neovim/neovim/releases/latest/download/$asset" -o "$tmp/$asset"
+  sudo rm -rf "/opt/nvim-linux-${arch}"
+  sudo tar -C /opt -xzf "$tmp/$asset"
+  sudo ln -sf "/opt/nvim-linux-${arch}/bin/nvim" /usr/local/bin/nvim
+  rm -rf "$tmp"
+  success "Neovim installed to /opt/nvim-linux-${arch} → /usr/local/bin/nvim"
+}
+
+install_neovim() {
+  header "Neovim"
+  if nvim_version_ok; then
+    success "neovim $(nvim --version | head -1 | awk '{print $2}') already installed (>= 0.10)"
+    return
+  fi
+  if [[ "$OS" == "Darwin" ]]; then
+    info "Installing neovim via brew..."
+    brew install neovim
+    success "neovim installed"
+  else
+    install_neovim_tarball
+  fi
+}
+
 # ─── macOS ────────────────────────────────────────────────────────────────────
 install_macos() {
   header "macOS — Homebrew"
@@ -85,6 +130,7 @@ install_debian() {
   sudo apt-get update -q
   sudo apt-get install -y -q \
     zsh git curl \
+    unzip tar gzip \
     ripgrep fd-find fzf
   success "apt packages installed"
 
@@ -110,6 +156,7 @@ install_fedora() {
   header "Fedora/RHEL — dnf"
   sudo dnf install -y -q \
     zsh git curl \
+    unzip tar gzip \
     ripgrep fd-find fzf
   success "dnf packages installed"
 
@@ -128,6 +175,7 @@ install_arch() {
   header "Arch — pacman"
   sudo pacman -Sy --noconfirm --needed \
     zsh git curl \
+    unzip tar gzip \
     ripgrep fd fzf eza starship zoxide \
     zsh-autosuggestions zsh-syntax-highlighting
   success "pacman packages installed"
@@ -190,6 +238,7 @@ main() {
     *) die "Unsupported OS: $OS" ;;
   esac
 
+  install_neovim
   setup_zdotdir
   check_fonts
   secrets_reminder

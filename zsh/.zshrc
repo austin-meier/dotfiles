@@ -4,7 +4,7 @@ export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CACHE_HOME="$HOME/.cache"
 
 # ─── PATH ─────────────────────────────────────────────────────────────────────
-eval "$(/opt/homebrew/bin/brew shellenv)"
+[[ -x /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
 path=(
   "$HOME/.cargo/bin"
   "$HOME/.local/bin"
@@ -36,6 +36,45 @@ setopt AUTO_CD AUTO_PUSHD PUSHD_IGNORE_DUPS PUSHD_SILENT
 setopt EXTENDED_GLOB GLOB_DOTS
 setopt CORRECT NO_BEEP
 setopt INTERACTIVE_COMMENTS
+
+# ─── Vi mode ──────────────────────────────────────────────────────────────────
+# Modal editing in the shell (evil-mode-style). Set before fzf/starship so their
+# keymaps and prompt hooks attach to the vi keymaps.
+bindkey -v
+KEYTIMEOUT=1   # 10ms — makes <Esc> into normal mode feel instant
+
+# Quality-of-life keys vi insert mode drops by default
+bindkey -M viins '^?' backward-delete-char   # Backspace deletes past insert point
+bindkey -M viins '^H' backward-delete-char   # Ctrl-H likewise
+bindkey -M viins '^A' beginning-of-line
+bindkey -M viins '^E' end-of-line
+bindkey -M viins '^K' kill-line
+
+# k/j search history by the prefix already typed (normal mode)
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey -M vicmd 'k' up-line-or-beginning-search
+bindkey -M vicmd 'j' down-line-or-beginning-search
+
+# Cursor shape: steady block in normal mode, steady beam in insert mode.
+# Starship wraps zle-keymap-select and adds its own `zle reset-prompt`, so the
+# ❯/❮ symbol flips automatically; the reset-prompt here is a harmless safeguard.
+_vi_cursor() {
+  case ${KEYMAP} in
+    vicmd)      printf '\e[2 q' ;;   # block
+    viins|main) printf '\e[6 q' ;;   # beam
+  esac
+}
+zle-keymap-select() { _vi_cursor; zle reset-prompt }
+zle-line-init()     { _vi_cursor }
+zle -N zle-keymap-select
+zle -N zle-line-init
+
+# Restore a beam before a command runs so programs don't inherit the block cursor
+autoload -Uz add-zsh-hook
+_vi_cursor_reset() { printf '\e[6 q' }
+add-zsh-hook preexec _vi_cursor_reset
 
 # ─── Completion ───────────────────────────────────────────────────────────────
 autoload -Uz compinit
@@ -94,7 +133,25 @@ export FZF_DEFAULT_OPTS="
   --bind='ctrl-/:toggle-preview'
 "
 
-command -v fzf &>/dev/null && source <(fzf --zsh)
+if command -v fzf &>/dev/null; then
+  if fzf --zsh &>/dev/null; then
+    # fzf >= 0.48 (macOS brew, recent distros)
+    source <(fzf --zsh)
+  else
+    # Older fzf — source distro-provided integration files if present
+    for _f in \
+      /usr/share/fzf/shell/key-bindings.zsh \
+      /usr/share/fzf/shell/completion.zsh \
+      /usr/share/fzf/key-bindings.zsh \
+      /usr/share/fzf/completion.zsh \
+      /usr/share/doc/fzf/examples/key-bindings.zsh \
+      /usr/share/doc/fzf/examples/completion.zsh
+    do
+      [[ -r "$_f" ]] && source "$_f"
+    done
+    unset _f
+  fi
+fi
 
 # ─── zoxide ───────────────────────────────────────────────────────────────────
 command -v zoxide &>/dev/null && eval "$(zoxide init --cmd cd zsh)"

@@ -42,11 +42,24 @@ return { -- Useful plugin to show you pending keybinds.
 			},
 		},
 
-		-- Document existing key chains
+		-- Group labels for the SPC tree (mirrors the emacs which-key groups)
 		spec = {
-			{ "<leader>s", group = "[S]earch" },
-			{ "<leader>t", group = "[T]oggle" },
-			{ "<leader>h", group = "Git [H]unk", mode = { "n", "v" } },
+			{ "<leader>b", group = "buffers" },
+			{ "<leader>f", group = "files" },
+			{ "<leader>o", group = "open" },
+			{ "<leader>p", group = "projects" },
+			{ "<leader>g", group = "git" },
+			{ "<leader>gh", group = "hunks" },
+			{ "<leader>t", group = "tabs" },
+			{ "<leader>h", group = "help" },
+			{ "<leader>w", group = "window" },
+			{ "<leader>c", group = "code" },
+			{ "<leader>ca", group = "actions" },
+			{ "<leader>cg", group = "goto" },
+			{ "<leader>ce", group = "errors" },
+			{ "<leader>cw", group = "workspace" },
+			{ "<leader>cd", group = "debug" },
+			{ "<leader>cu", group = "ui" },
 		},
 	},
 }
