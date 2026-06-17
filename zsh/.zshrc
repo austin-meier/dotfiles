@@ -4,15 +4,14 @@ export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CACHE_HOME="$HOME/.cache"
 
 # ─── PATH ─────────────────────────────────────────────────────────────────────
+# Portable, home-relative dirs only. Machine-specific entries (brew kegs,
+# project bins) belong in zsh/local.zsh, sourced at the end of this file.
 [[ -x /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
 path=(
   "$HOME/.cargo/bin"
   "$HOME/.local/bin"
   "$HOME/.bun/bin"
   "$HOME/.composer/vendor/bin"
-  "$HOME/coding/clojure/tw"
-  "/opt/homebrew/opt/postgresql@16/bin"
-  "/opt/homebrew/opt/mysql-client/bin"
   $path
 )
 export PATH
@@ -22,7 +21,6 @@ export EDITOR='nvim'
 export VISUAL='nvim'
 export LANG='en_US.UTF-8'
 export BUN_INSTALL="$HOME/.bun"
-export OPENSSL_DIR="/opt/homebrew/Cellar/openssl@3/3.3.0"
 
 # ─── History ──────────────────────────────────────────────────────────────────
 HISTFILE="$ZDOTDIR/.zsh_history"
@@ -107,7 +105,7 @@ ZSH_AUTOSUGGEST_USE_ASYNC=1
 
 # ─── eza ──────────────────────────────────────────────────────────────────────
 alias ls='eza --icons=always --group-directories-first'
-alias la='eza --icons=always --group-directories-first -a'
+alias lsa='eza --icons=always --group-directories-first -a'
 alias ll='eza --icons=always --group-directories-first -lah --git'
 alias lt='eza --icons=always --tree --level=2 --group-directories-first'
 alias lta='eza --icons=always --tree --level=3 -a --group-directories-first'
@@ -163,13 +161,7 @@ export RIPGREP_CONFIG_PATH="$XDG_CONFIG_HOME/ripgrep/config"
 alias vim='nvim'
 alias vi='nvim'
 alias s='ssh'
-alias obs='/Applications/Obsidian.app/Contents/MacOS/Obsidian'
-alias pulldocs='git -C ~/Documents/lampblack pull'
-alias docs='cd ~/Documents/lampblack'
-alias nukecss='rm -rf ~/jam/var/cache/ ~/jam/var/generation/ ~/jam/var/page_cache/ ~/jam/var/view_preprocessed/ ~/jam/generated'
-alias printid='node /Users/austin/coding/js/PrintQuest/bun/scripts/fix-order.js'
-alias syncjar='rsync -azvh ~/coding/java/pdf/target/jam.jar www-data@austin:~/repos/jam/java/jam.jar --progress'
-alias products='/opt/homebrew/bin/python3.11 /Users/austin/coding/jam/sql/get-products.py'
+# Device-specific aliases (app paths, project scripts) live in zsh/local.zsh.
 
 # ─── bun completions ──────────────────────────────────────────────────────────
 [[ -s "$HOME/.bun/_bun" ]] && source "$HOME/.bun/_bun"
@@ -179,3 +171,8 @@ alias products='/opt/homebrew/bin/python3.11 /Users/austin/coding/jam/sql/get-pr
 
 # ─── Prompt ───────────────────────────────────────────────────────────────────
 command -v starship &>/dev/null && eval "$(starship init zsh)"
+
+# ─── Machine-specific overrides ─────────────────────────────────────────────────
+# Per-computer config (PATHs, aliases, env) that shouldn't be committed.
+# Gitignored; create it on whichever machine needs it.
+[[ -f "$ZDOTDIR/local.zsh" ]] && source "$ZDOTDIR/local.zsh"

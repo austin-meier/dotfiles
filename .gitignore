@@ -6,6 +6,7 @@
 
 # ─── zsh ─────────────────────────────────────────────────────────────────────
 zsh/secrets.zsh
+zsh/local.zsh
 zsh/.zsh_history
 zsh/.zcompdump*
 zsh/.zcompcache/

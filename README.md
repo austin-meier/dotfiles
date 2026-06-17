@@ -47,12 +47,14 @@ fc-cache -fv
 
 All installed by `install.sh`. Listed here for reference:
 
+All Rust-based tools are built from source with cargo on every platform for consistent versions; only fzf (Go) comes from the system package manager.
+
 | Tool | Source | Used for |
 |------|--------|---------|
-| [eza](https://github.com/eza-community/eza) | cargo / brew | `ls` replacement with icons and git status |
-| [fd](https://github.com/sharkdp/fd) | cargo | Fast `find` replacement; fzf file source |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | cargo / brew | Fast grep |
-| [fzf](https://github.com/junegunn/fzf) | brew / apt | Fuzzy finder — `Ctrl-R` history, `Ctrl-T` files, `Alt-C` dirs |
+| [eza](https://github.com/eza-community/eza) | cargo | `ls` replacement with icons and git status |
+| [fd](https://github.com/sharkdp/fd) | cargo (`fd-find`) | Fast `find` replacement; fzf file source |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) | cargo | Fast grep |
+| [fzf](https://github.com/junegunn/fzf) | brew / apt / dnf / pacman | Fuzzy finder — `Ctrl-R` history, `Ctrl-T` files, `Alt-C` dirs |
 | [starship](https://starship.rs) | cargo | Cross-shell prompt |
 | [zoxide](https://github.com/ajeetdsouza/zoxide) | cargo | Smart `cd` that learns frequent dirs |
 | [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) | brew / git | Fish-style inline history suggestions |
@@ -86,7 +88,7 @@ All installed by `install.sh`. Listed here for reference:
 | Alias | Expands to |
 |-------|-----------|
 | `ls` | Icons, directories first |
-| `la` | `ls` + hidden files |
+| `lsa` | `ls` + hidden files |
 | `ll` | Long format, human sizes, git status |
 | `lt` | Tree view, 2 levels |
 | `lta` | Tree view, 3 levels, all files |
@@ -97,15 +99,11 @@ All installed by `install.sh`. Listed here for reference:
 
 ### macOS (primary)
 
-Uses Homebrew for zsh plugins and fzf; cargo for eza, fd, starship, and zoxide. The zsh plugin sources resolve to `/opt/homebrew/share/`.
+Uses Homebrew for zsh plugins and fzf, plus the Xcode Command Line Tools for the C toolchain cargo needs. All Rust tools (ripgrep, fd, eza, starship, zoxide) are built with cargo. The zsh plugin sources resolve to `/opt/homebrew/share/`.
 
-### Linux (Debian/Ubuntu)
+### Linux (Debian/Ubuntu, Fedora, Arch)
 
-`fd` is packaged as `fd-find` — the install script creates a `~/.local/bin/fd` shim automatically. Zsh plugins are git-cloned to `~/.local/share/zsh/plugins/` since they're often absent or outdated in apt. Rust-based tools (eza, starship, zoxide) are installed via cargo.
-
-### Linux (Fedora, Arch)
-
-Arch has all tools in the official repos — `install.sh` uses pacman only, no cargo step needed. Fedora uses dnf for base tools + cargo for eza/starship/zoxide.
+The system package manager installs only the non-Rust base (zsh, git, curl, archive tools, fzf) plus a C build toolchain (`build-essential` / `gcc` / `base-devel`). All Rust tools are then built with cargo, so the same versions land on every distro regardless of how stale the repos are. Zsh plugins are git-cloned to `~/.local/share/zsh/plugins/` on all Linux distros for a consistent, up-to-date source.
 
 ### Windows
 

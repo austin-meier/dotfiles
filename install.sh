@@ -19,30 +19,67 @@ header()  { printf "\n${BOLD}%s${RESET}\n" "$*"; }
 
 OS=$(uname -s)
 
-# ─── Rust / Cargo ─────────────────────────────────────────────────────────────
+# ─── Rust tooling ─────────────────────────────────────────────────────────────
+# All Rust-based CLI tools are built from source with cargo so the same binaries
+# (and versions) are reproduced on every platform, independent of how stale a
+# given distro's packages are. Format: "crate:binary".
+RUST_TOOLS=(
+  "ripgrep:rg"
+  "fd-find:fd"
+  "eza:eza"
+  "starship:starship"
+  "zoxide:zoxide"
+)
+
 ensure_cargo() {
   if command -v cargo &>/dev/null; then
     success "cargo already installed"
     return
   fi
-  info "Installing Rust toolchain..."
+  info "Installing Rust toolchain via rustup..."
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+  # shellcheck source=/dev/null
   source "$HOME/.cargo/env"
   success "Rust installed"
+}
+
+# A C compiler + linker are required to build crates from source. rustup does not
+# provide them, so they must come from the system package manager first.
+ensure_build_toolchain() {
+  if command -v cc &>/dev/null || command -v gcc &>/dev/null || command -v clang &>/dev/null; then
+    success "C toolchain present"
+    return
+  fi
+  warn "No C compiler found — cargo builds will fail until one is installed."
 }
 
 cargo_install() {
   local crate="$1" bin="${2:-$1}"
   if command -v "$bin" &>/dev/null; then
     success "$bin already installed"
-  else
-    info "Installing $crate via cargo..."
-    cargo install "$crate" --locked 2>/dev/null || cargo install "$crate"
-    success "$bin installed"
+    return
   fi
+  info "Building $crate via cargo (this can take a few minutes)..."
+  # Prefer the locked dependency set; fall back to a normal resolve if the
+  # crate ships no Cargo.lock or it conflicts with the installed toolchain.
+  cargo install "$crate" --locked || cargo install "$crate"
+  success "$bin installed"
+}
+
+install_rust_tools() {
+  header "Rust tools (cargo)"
+  ensure_build_toolchain
+  ensure_cargo
+  local entry crate bin
+  for entry in "${RUST_TOOLS[@]}"; do
+    crate="${entry%%:*}"; bin="${entry##*:}"
+    cargo_install "$crate" "$bin"
+  done
 }
 
 # ─── Zsh plugins (portable — git clone to XDG data dir) ──────────────────────
+# Used on every Linux distro: apt/dnf packages are often stale and Arch installs
+# plugins to a path .zshrc doesn't search, so a git clone is the portable choice.
 install_zsh_plugins_git() {
   local plugin_dir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
   mkdir -p "$plugin_dir"
@@ -60,6 +97,15 @@ install_zsh_plugins_git() {
     fi
     success "$name ready at $plugin_dir/$name"
   done
+}
+
+install_zsh_plugins() {
+  header "Zsh plugins"
+  if [[ "$OS" == "Darwin" ]]; then
+    success "Installed via brew (zsh-autosuggestions, zsh-syntax-highlighting)"
+    return
+  fi
+  install_zsh_plugins_git
 }
 
 # ─── Neovim (>= 0.10) ─────────────────────────────────────────────────────────
@@ -107,77 +153,47 @@ install_neovim() {
   fi
 }
 
-# ─── macOS ────────────────────────────────────────────────────────────────────
+# ─── Base packages (non-Rust) ─────────────────────────────────────────────────
+# Each platform installs only what cargo cannot provide: the shell, git/curl,
+# archive tools, fzf (Go, not Rust), and the C toolchain needed to build crates.
 install_macos() {
   header "macOS — Homebrew"
   command -v brew &>/dev/null || die "Homebrew not found. Install from https://brew.sh"
+  xcode-select -p &>/dev/null || warn "Xcode Command Line Tools missing — run: xcode-select --install"
 
   info "Installing brew packages..."
-  brew install eza ripgrep fzf \
-    zsh-autosuggestions zsh-syntax-highlighting
+  brew install fzf zsh-autosuggestions zsh-syntax-highlighting
   success "Brew packages installed"
-
-  header "Cargo tools"
-  ensure_cargo
-  cargo_install fd-find fd
-  cargo_install starship starship
-  cargo_install zoxide zoxide
 }
 
-# ─── Debian / Ubuntu ──────────────────────────────────────────────────────────
 install_debian() {
   header "Debian/Ubuntu — apt"
   sudo apt-get update -q
   sudo apt-get install -y -q \
     zsh git curl \
     unzip tar gzip \
-    ripgrep fd-find fzf
+    fzf \
+    build-essential pkg-config
   success "apt packages installed"
-
-  # Debian names the binary fdfind — create a local shim
-  if ! command -v fd &>/dev/null && command -v fdfind &>/dev/null; then
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
-    success "fd → fdfind shim created at ~/.local/bin/fd"
-  fi
-
-  header "Zsh plugins"
-  install_zsh_plugins_git
-
-  header "Cargo tools"
-  ensure_cargo
-  cargo_install eza eza
-  cargo_install starship starship
-  cargo_install zoxide zoxide
 }
 
-# ─── Fedora / RHEL ────────────────────────────────────────────────────────────
 install_fedora() {
   header "Fedora/RHEL — dnf"
   sudo dnf install -y -q \
     zsh git curl \
     unzip tar gzip \
-    ripgrep fd-find fzf
+    fzf \
+    gcc gcc-c++ make pkg-config
   success "dnf packages installed"
-
-  header "Zsh plugins"
-  install_zsh_plugins_git
-
-  header "Cargo tools"
-  ensure_cargo
-  cargo_install eza eza
-  cargo_install starship starship
-  cargo_install zoxide zoxide
 }
 
-# ─── Arch ─────────────────────────────────────────────────────────────────────
 install_arch() {
   header "Arch — pacman"
   sudo pacman -Sy --noconfirm --needed \
     zsh git curl \
     unzip tar gzip \
-    ripgrep fd fzf eza starship zoxide \
-    zsh-autosuggestions zsh-syntax-highlighting
+    fzf \
+    base-devel
   success "pacman packages installed"
 }
 
@@ -196,10 +212,31 @@ setup_zdotdir() {
     success "ZDOTDIR set"
   fi
 
-  if [[ "$SHELL" != */zsh ]]; then
-    warn "Default shell is $SHELL — switch to zsh with: chsh -s \$(which zsh)"
-  else
+  set_default_shell
+}
+
+# Switch the login shell to zsh when it isn't already. chsh refuses any shell not
+# listed in /etc/shells, so register it there first (needs sudo on Linux; macOS
+# ships zsh pre-listed). Never fatal — fall back to a manual hint on failure.
+set_default_shell() {
+  local zsh_path
+  zsh_path=$(command -v zsh) || { warn "zsh not found on PATH — cannot set default shell"; return; }
+
+  if [[ "$SHELL" == */zsh ]]; then
     success "Default shell is already zsh"
+    return
+  fi
+
+  if ! grep -qxF "$zsh_path" /etc/shells 2>/dev/null; then
+    info "Registering $zsh_path in /etc/shells..."
+    echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+  fi
+
+  info "Setting default shell to zsh (you may be prompted for your password)..."
+  if chsh -s "$zsh_path"; then
+    success "Default shell set to zsh — restart your session to apply"
+  else
+    warn "Could not change shell automatically. Run manually: chsh -s $zsh_path"
   fi
 }
 
@@ -238,6 +275,8 @@ main() {
     *) die "Unsupported OS: $OS" ;;
   esac
 
+  install_rust_tools
+  install_zsh_plugins
   install_neovim
   setup_zdotdir
   check_fonts

@@ -693,6 +693,15 @@ Low-risk, high-impact one-liners. ~gcmh~ lives under Plugins.
   (setq display-line-numbers-type 'relative)
 #+end_src
 
+** Image mode
+The "flashing border" around an image is the cursor: Emacs draws it as a box
+around the whole image glyph, and ~blink-cursor-mode~ makes it blink. Hiding the
+cursor in image buffers kills the flash there while keeping the blinking cursor
+everywhere else (unlike a global ~blink-cursor-mode -1~).
+#+begin_src emacs-lisp
+  (add-hook 'image-mode-hook (lambda () (setq-local cursor-type nil)))
+#+end_src
+
 ** Doom Theme
 #+begin_src emacs-lisp
 (use-package doom-themes
@@ -1023,31 +1032,23 @@ for install commands.
   (use-package lsp-ui
     :custom
     (lsp-ui-sideline-show-diagnostics t)
-    (lsp-ui-sideline-show-hover t)
+    ;; Hover info (symbol type/signature for the current line) is the oversized,
+    ;; noisy part on the sideline — turned off. Diagnostics stay as before.
+    (lsp-ui-sideline-show-hover nil)
     (lsp-ui-sideline-ignore-duplicate t)
-    (lsp-ui-sideline-diagnostic-max-lines 2)
-    )
+    (lsp-ui-sideline-diagnostic-max-lines 2))
 #+end_src
 
 ** Treesitter
-~clojure-ts-mode~ pulls in the =markdown-inline= and =regex= grammars as
-embedded parsers (to fontify docstrings and regex literals). Upstream
-=markdown-inline= now generates a parser at tree-sitter ABI 15, which Emacs
-30.x (max ABI 14) rejects with a "version-mismatch" warning the moment you
-open a =.clj= file. Pin the markdown grammars to a tag that still emits an
-ABI ≤14 parser so reinstalls stay compatible. Drop these once Emacs ships
-support for ABI 15.
-#+begin_src emacs-lisp
-(with-eval-after-load 'treesit
-  (dolist (src '((markdown
-                  "https://github.com/tree-sitter-grammars/tree-sitter-markdown"
-                  "v0.3.2" "tree-sitter-markdown/src")
-                 (markdown-inline
-                  "https://github.com/tree-sitter-grammars/tree-sitter-markdown"
-                  "v0.3.2" "tree-sitter-markdown-inline/src")))
-    (setf (alist-get (car src) treesit-language-source-alist)
-          (cdr src))))
+~treesit-auto~ auto-installs grammars and maps the tree-sitter major modes.
+Individual modes own their grammar set (e.g. ~clojure-ts-mode~ pulls in
+=markdown-inline= / =regex= for docstring + regex fontification).
 
+NOTE: this assumes Emacs is linked against libtree-sitter ≥0.25 (ABI 15) — the
+source-built Emacs in =/usr/local=. The stock Ubuntu package links
+libtree-sitter 0.20.8 (ABI 14) and rejects these modern grammars; the old
+=v0.3.2= markdown pin that used to work around that is no longer needed.
+#+begin_src emacs-lisp
 (use-package treesit-auto
   :custom
   (treesit-auto-install 'prompt)
@@ -1093,12 +1094,16 @@ support for ABI 15.
 #+end_src
 
 ** Electric Pair (auto-close delimiters)
-Replaces paredit. =electric-pair-local-mode= (built-in) auto-inserts matching
-=()=, =[]=, ={}=, and =""= and is enabled per language in the mode hooks (see
-[[#language-specific][Language Specific]]); lispyville handles all structural
-editing. paredit was dropped because its open-paren command reindents via an
+=electric-pair-local-mode= (built-in) auto-inserts matching =()=, =[]=, ={}=,
+and =""=, enabled per language in the mode hooks (see
+[[#language-specific][Language Specific]]). Structural editing is split: lispyville
+gives sexp-safe evil operators in normal/visual state, and paredit's *commands*
+handle slurp/barf/wrap/raise in insert state (see Paredit).
+
+We avoid =paredit-mode= itself — its electric open-paren reindents via an
 unguarded =backward-up-list=, which =clojure-ts-mode='s tree-sitter syntax
-doesn't satisfy — every "(" raised =Scan error: Unbalanced parentheses=.
+doesn't satisfy (every "(" raised =Scan error: Unbalanced parentheses=). Binding
+only paredit's commands, not the mode, sidesteps that entirely.
 
 ** Lispyville
 Evil-aware structural editing built on lispy. We keep the key theme minimal:
@@ -1288,16 +1293,27 @@ Only loads when the =claude= CLI is on =PATH= — install instructions in
     :if (executable-find "clj-kondo")
     :config (require 'flycheck-clj-kondo))
 
-  ;; Turn on rainbow delimeters and activate the LSP when entering a clojure
-  ;; file. (Format-on-save is configured globally for all LSP buffers; see LSP.)
-  ;; NOTE: paredit is intentionally NOT used here. Its open-paren command
+  ;; Activate electric-pair + LSP when entering a clojure file.
+  ;; (Format-on-save is configured globally for all LSP buffers; see LSP.)
+  ;; NOTE: `paredit-mode' is intentionally NOT enabled. Its open-paren command
   ;; reindents via an unguarded `backward-up-list', which clojure-ts-mode's
   ;; tree-sitter syntax doesn't satisfy, so every "(" raised
   ;; `Scan error: Unbalanced parentheses'. `electric-pair-local-mode' handles
-  ;; auto-closing delimiters, and lispyville covers structural editing
-  ;; (slurp/barf/wrap/etc.).
+  ;; auto-closing delimiters; structural editing comes from lispyville (sexp-safe
+  ;; operators) plus paredit's *commands* in insert state (slurp/barf/wrap/raise).
   (add-hook 'clojure-ts-mode-hook
             (lambda ()
+              ;; clojure-ts-mode sets `comment-start' but (unlike clojure-mode)
+              ;; leaves `comment-start-skip' nil and `comment-use-syntax' at
+              ;; 'undecided. lispy's comment code (`lispy--beginning-of-comment',
+              ;; reached by lispyville's `dd' on a comment line) calls
+              ;; `comment-search-backward', which `re-search-backward's against
+              ;; `comment-start-skip' — nil there raises
+              ;; "Wrong type argument: stringp, nil". Set both, mirroring
+              ;; clojure-mode, so structural deletes over comments work.
+              (setq-local comment-start-skip
+                          "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|#|\\) *")
+              (setq-local comment-use-syntax t)
               (electric-pair-local-mode)
               (add-hook 'before-save-hook #'austin/lsp-format-on-real-save nil t)
               (lsp)))
