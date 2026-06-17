@@ -5,3 +5,4 @@
 !early-init.el
 !config.org
 !setup.md
+!build-emacs.sh
