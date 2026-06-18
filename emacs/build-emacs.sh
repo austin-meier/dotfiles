@@ -192,9 +192,13 @@ build_emacs() {
   cd "$SRC"
   if [[ "$EMACS_GUI" == "ns" ]]; then
     make -j"$(sysctl -n hw.ncpu)"
-    info "Placing Emacs.app in /Applications..."
-    rm -rf /Applications/Emacs.app
-    cp -R nextstep/Emacs.app /Applications/Emacs.app
+    # For an NS build, `make install` populates nextstep/Emacs.app in place
+    # (lisp, libexec, native-lisp). Skipping it yields a bundle that launches
+    # and instantly crashes.
+    make install
+    info "Placing Emacs.app in /Applications (sudo)..."
+    sudo rm -rf /Applications/Emacs.app
+    sudo cp -R nextstep/Emacs.app /Applications/Emacs.app
     success "Installed /Applications/Emacs.app"
   else
     make -j"$(nproc)"
