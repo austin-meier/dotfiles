@@ -1,21 +1,43 @@
+# ─── Whitelist mode ──────────────────────────────────────────────────────────
+# This is ~/.config, a directory full of state from every app on the system.
+# So we ignore *everything* at the top level by default and only un-ignore the
+# specific dotfiles we actually want to track. To add a new config, whitelist
+# it below with a `!` line.
+
+# Ignore every top-level entry.
+/*
+
+# ─── Tracked top-level files ─────────────────────────────────────────────────
+!/.gitignore
+!/README.md
+!/install.sh
+!/starship.toml
+
+# ─── Tracked config directories ──────────────────────────────────────────────
+# Whitelisting a directory tracks its full contents (emacs/ carries its own
+# nested whitelist .gitignore). Re-exclude any in-tree junk further below.
+!/clojure/
+!/emacs/
+!/git/
+!/nvim/
+!/ripgrep/
+!/wezterm/
+!/zsh/
+
+# ─── Per-directory exclusions (re-ignore junk inside whitelisted dirs) ────────
+
 # macOS
 .DS_Store
 
 # Editor / IDE local state
 **/.claude/settings.local.json
 
-# ─── zsh ─────────────────────────────────────────────────────────────────────
+# zsh — keep secrets and generated state out of the repo.
 zsh/secrets.zsh
 zsh/local.zsh
 zsh/.zsh_history
 zsh/.zcompdump*
 zsh/.zcompcache/
 
-# ─── nvim ────────────────────────────────────────────────────────────────────
-# lazy.nvim runtime state (plugins are installed into XDG_DATA_HOME, not here,
-# but lock the rest of the tree down just in case)
+# nvim — lazy.nvim runtime state (plugins live in XDG_DATA_HOME).
 nvim/.netrwhist
-
-# ─── emacs ───────────────────────────────────────────────────────────────────
-# emacs has its own whitelist .gitignore inside emacs/ that ignores elpaca,
-# eshell history, auto-save-list, etc. Nothing extra needed here.
