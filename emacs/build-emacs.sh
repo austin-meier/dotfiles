@@ -63,8 +63,11 @@ install_deps_macos() {
   header "Build dependencies — Homebrew"
   command -v brew &>/dev/null || die "Homebrew not found. Install from https://brew.sh"
   info "Installing brew packages..."
+  # gcc is required alongside libgccjit: native-comp's JIT shells out to the gcc
+  # driver (gcc-NN) at runtime to assemble/link. Without it, configure fails with
+  # "libgccjit.so: error: error invoking gcc driver". They must match versions.
   brew install autoconf automake texinfo pkg-config gnutls \
-    libgccjit tree-sitter librsvg jansson \
+    gcc libgccjit tree-sitter librsvg jansson \
     libxml2 jpeg-turbo libtiff giflib webp libpng \
     harfbuzz cairo gmp
   success "Dependencies installed"
