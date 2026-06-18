@@ -43,6 +43,7 @@
   - [[#clojure][Clojure]]
   - [[#racket][Racket]]
   - [[#ada][Ada]]
+  - [[#cc][C/C++]]
 
 * Priority
 
@@ -276,6 +277,105 @@ redirected paths.
     "Run `cargo test' in the project root."
     (interactive)
     (compile "cargo test"))
+
+  ;; --- C/C++ build/run helpers ----------------------------------------------
+  ;; C/C++ has no single canonical build command, so these detect the project
+  ;; shape (CMake → Makefile → loose file) and `compile' the right thing. Std
+  ;; versions are configurable; single-file builds use the portable `cc'/`c++'
+  ;; driver names so the same code works with clang (macOS) or gcc (Linux).
+  (defvar austin/cc-c-std "c17"
+    "C standard passed to single-file compiles.")
+  (defvar austin/cc-c++-std "c++20"
+    "C++ standard passed to single-file compiles.")
+  (defvar austin/cc-cmake-build-dir "build"
+    "Out-of-source CMake build directory, relative to the project root.")
+
+  (defun austin/cc--c++-p ()
+    "Non-nil when the current buffer is C++ (vs C)."
+    (derived-mode-p 'c++-ts-mode 'c++-mode))
+
+  (defun austin/cc--single-file-cmd (&optional run)
+    "Compile command for the current buffer; append a run step when RUN."
+    (let* ((src (or buffer-file-name (user-error "Buffer is not visiting a file")))
+           (out (file-name-sans-extension src)))
+      (format "%s -g -O0 -Wall -Wextra -std=%s %s -o %s%s"
+              (if (austin/cc--c++-p) "c++" "cc")
+              (if (austin/cc--c++-p) austin/cc-c++-std austin/cc-c-std)
+              (shell-quote-argument src)
+              (shell-quote-argument out)
+              (if run (format " && %s" (shell-quote-argument out)) ""))))
+
+  (defun austin/cc--root-with (file)
+    "Project root if it contains FILE (a filename), else nil."
+    (when-let* ((proj (project-current))
+                (root (project-root proj))
+                ((file-exists-p (expand-file-name file root))))
+      root))
+
+  (defun austin/cc--cmake-root ()
+    (austin/cc--root-with "CMakeLists.txt"))
+
+  (defun austin/cc--make-root ()
+    (or (austin/cc--root-with "Makefile") (austin/cc--root-with "makefile")))
+
+  (defun austin/cc-build ()
+    "Build the current C/C++ project, or compile the current file.
+  CMakeLists.txt → configure + build into `austin/cc-cmake-build-dir' (also
+  emitting compile_commands.json for clangd); Makefile → run make; otherwise
+  compile the current buffer to a binary beside the source."
+    (interactive)
+    (cond
+     ((austin/cc--cmake-root)
+      (let* ((root (austin/cc--cmake-root))
+             (bdir (expand-file-name austin/cc-cmake-build-dir root)))
+        (compile (format "cmake -S %s -B %s -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build %s"
+                         (shell-quote-argument root)
+                         (shell-quote-argument bdir)
+                         (shell-quote-argument bdir)))))
+     ((austin/cc--make-root)
+      (let ((default-directory (austin/cc--make-root)))
+        (compile "make")))
+     (t (compile (austin/cc--single-file-cmd)))))
+
+  (defun austin/cc-compile-file ()
+    "Compile just the current C/C++ buffer to a binary beside the source."
+    (interactive)
+    (compile (austin/cc--single-file-cmd)))
+
+  (defun austin/cc-run ()
+    "Compile the current C/C++ buffer and run the resulting binary."
+    (interactive)
+    (compile (austin/cc--single-file-cmd t)))
+
+  (defun austin/cc-test ()
+    "Run the test suite: ctest in the CMake build dir, else `make test'."
+    (interactive)
+    (cond
+     ((austin/cc--cmake-root)
+      (let ((default-directory (expand-file-name austin/cc-cmake-build-dir
+                                                 (austin/cc--cmake-root))))
+        (compile "ctest --output-on-failure")))
+     ((austin/cc--make-root)
+      (let ((default-directory (austin/cc--make-root)))
+        (compile "make test")))
+     (t (user-error "No CMake or Makefile project found"))))
+
+  (defun austin/cc--debug-program ()
+    "Prompt for the compiled executable to debug (defaults to the project root)."
+    (read-file-name "Executable to debug: "
+                    (when-let ((proj (project-current))) (project-root proj))
+                    nil t))
+
+  (defun austin/lldb-dap-program ()
+    "Locate the lldb-dap (formerly lldb-vscode) DAP adapter, portably.
+  Checks PATH first, then falls back to the Xcode/CLT copy on macOS. Returns
+  nil when no adapter is available."
+    (or (executable-find "lldb-dap")
+        (executable-find "lldb-vscode")
+        (and (eq system-type 'darwin)
+             (let ((p (string-trim
+                       (shell-command-to-string "xcrun -f lldb-dap 2>/dev/null"))))
+               (and (not (string-empty-p p)) (file-executable-p p) p)))))
 
   (defun austin/clj-debug-repl ()
     "Jack-in CIDER with Flow-Storm and nREPL middleware for Clojure only."
@@ -528,6 +628,16 @@ redirected paths.
       "eb" '(austin/cargo-build :wk "cargo build")
       "er" '(austin/cargo-run :wk "cargo run")
       "et" '(austin/cargo-test :wk "cargo test")
+      "eR" '(recompile :wk "recompile last")
+      "ec" '(project-compile :wk "project compile…"))
+
+    (austin/leader-key
+      :keymaps '(c-ts-mode-map c++-ts-mode-map)
+      "e"  '(:ignore t :wk "build/run")
+      "eb" '(austin/cc-build :wk "build (cmake/make/file)")
+      "er" '(austin/cc-run :wk "compile + run file")
+      "ef" '(austin/cc-compile-file :wk "compile file")
+      "et" '(austin/cc-test :wk "test (ctest/make)")
       "eR" '(recompile :wk "recompile last")
       "ec" '(project-compile :wk "project compile…"))
 
@@ -977,6 +1087,10 @@ for install commands.
               (executable-find "vscode-json-languageserver"))
       (lsp)))
 
+  (defun austin/lsp-cpp ()
+    "Start `lsp' only if clangd is on PATH."
+    (when (executable-find "clangd") (lsp)))
+
   ;; --- Format on save (all LSP buffers) -------------------------------------
   (defvar austin/format-on-save t
     "When non-nil, format LSP buffers on explicit save via `lsp-format-buffer'.")
@@ -1020,10 +1134,19 @@ for install commands.
     ;; through the server, so every electric-/aggressive-indent reindent becomes a
     ;; cljfmt reformat that strips the space in a half-typed "(defn |)" -> "(defn)".
     (setq lsp-enable-indentation nil)
+    ;; clangd tuning: index the whole project in the background, surface
+    ;; clang-tidy diagnostics, and don't auto-insert #includes on completion.
+    (setq lsp-clients-clangd-args '("--background-index"
+                                    "--clang-tidy"
+                                    "--completion-style=detailed"
+                                    "--header-insertion=never"
+                                    "-j=4"))
     :hook ((typescript-ts-mode . austin/lsp-ts)
            (tsx-ts-mode . austin/lsp-ts)
            (rust-ts-mode . austin/lsp-rust)
            (json-ts-mode . austin/lsp-json)
+           (c-ts-mode . austin/lsp-cpp)
+           (c++-ts-mode . austin/lsp-cpp)
            (lsp-mode . lsp-enable-which-key-integration)
            (lsp-mode . austin/lsp-enable-format-on-save))
     :commands lsp)
@@ -1058,8 +1181,32 @@ libtree-sitter 0.20.8 (ABI 14) and rejects these modern grammars; the old
 #+end_src
 
 ** Debugger
+~dap-mode~ drives debugging through the Debug Adapter Protocol; the =SPC c d=
+keymap (see Keybindings) is already wired to its commands. For C/C++ we use the
+~lldb-dap~ adapter (formerly =lldb-vscode=): it ships with the Xcode CLT on
+macOS and with LLVM on Linux, so there's nothing to download. ~austin/lldb-dap-program~
+finds it portably (PATH → =xcrun= fallback); if no adapter is present the setup
+is a silent no-op and the bare ~dap-debug~ menu still works for other languages.
+
+By default ~dap-lldb~ tries to debug the *source* file under point; we override
+~dap-lldb-debugged-program-function~ to prompt for the compiled binary instead.
+Build with =SPC e b= first, then =SPC c d d= and pick the executable.
+
+Prefer Microsoft's cpptools adapter instead? Run =M-x dap-cpptools-setup= once
+to download it, then ~(require 'dap-cpptools)~ here.
 #+begin_src emacs-lisp
-(use-package dap-mode)
+  (use-package dap-mode
+    :commands (dap-debug dap-debug-edit-template dap-breakpoint-toggle)
+    :config
+    (require 'dap-lldb)
+    (dap-ui-mode 1)
+    (dap-tooltip-mode 1)
+    (tooltip-mode 1)
+    ;; Point dap-lldb at whatever lldb-dap we can find; keep the default if none.
+    (when-let ((prog (austin/lldb-dap-program)))
+      (setq dap-lldb-debug-program (list prog)))
+    ;; Debug the chosen compiled binary, not the source file under point.
+    (setq dap-lldb-debugged-program-function #'austin/cc--debug-program))
 #+end_src
 
 ** Treemacs
@@ -1349,4 +1496,23 @@ needs the ~racket~ binary on PATH at REPL time.
 
   (use-package ada-ts-mode
     :hook ((ada-ts-mode . austin/lsp-ada)))
+#+end_src
+** C/C++
+~clangd~ drives completion, navigation, diagnostics, and format-on-save (gated
+on the binary — see [[#lsp][LSP]]). The tree-sitter modes (~c-ts-mode~ /
+~c++-ts-mode~) and their grammars come from ~treesit-auto~. Build/run/debug live
+under =SPC e= (build helpers) and =SPC c d= (dap) — see [[#keybindings][Keybindings]].
+
+clangd resolves =#include= paths from a =compile_commands.json=. CMake emits one
+when configured with =-DCMAKE_EXPORT_COMPILE_COMMANDS=ON= (the =SPC e b= build
+helper passes this automatically); for Makefile projects, generate one with
+=bear -- make=. Single-file programs need no setup. See [[file:setup.md][setup.md]]
+for installing clangd / lldb-dap / cmake per platform.
+#+begin_src emacs-lisp
+  ;; Auto-close delimiters, matching the other languages.
+  (dolist (hook '(c-ts-mode-hook c++-ts-mode-hook))
+    (add-hook hook #'electric-pair-local-mode))
+
+  ;; 2-space indent / no tabs, mirroring the global defaults.
+  (setq c-ts-mode-indent-offset 2)
 #+end_src

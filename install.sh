@@ -197,6 +197,43 @@ install_arch() {
   success "pacman packages installed"
 }
 
+# ─── C/C++ tooling (clangd + cmake) ────────────────────────────────────────────
+# The Emacs C/C++ setup uses clangd (LSP: completion/navigation/diagnostics) and
+# CMake (build + compile_commands.json for clangd). clangd ships with the
+# LLVM/Clang toolchain — on macOS that's the Xcode Command Line Tools, so only
+# CMake needs a brew install there; on Linux it's a normal package. Idempotent:
+# skips entirely when both binaries are already on PATH.
+install_cpp_tools() {
+  header "C/C++ tooling (clangd + cmake)"
+  if command -v clangd &>/dev/null && command -v cmake &>/dev/null; then
+    success "clangd and cmake already installed"
+    return
+  fi
+  case "$OS" in
+    Darwin)
+      # clangd comes from the Xcode CLT (see install_macos); only cmake via brew.
+      command -v cmake &>/dev/null || brew install cmake
+      if command -v clangd &>/dev/null; then
+        success "clangd present (Xcode CLT)"
+      else
+        warn "clangd not found — run 'xcode-select --install', or 'brew install llvm'"
+      fi
+      ;;
+    Linux)
+      if   command -v apt-get &>/dev/null; then
+        sudo apt-get install -y -q clangd cmake
+      elif command -v dnf &>/dev/null; then
+        # clangd lives in clang-tools-extra on Fedora/RHEL.
+        sudo dnf install -y -q clang-tools-extra cmake
+      elif command -v pacman &>/dev/null; then
+        # clangd is bundled in the clang package on Arch.
+        sudo pacman -S --noconfirm --needed clang cmake
+      fi
+      ;;
+  esac
+  success "C/C++ tooling ready"
+}
+
 # ─── zshenv ───────────────────────────────────────────────────────────────────
 setup_zdotdir() {
   header "Shell bootstrap"
@@ -278,6 +315,7 @@ main() {
   install_rust_tools
   install_zsh_plugins
   install_neovim
+  install_cpp_tools
   setup_zdotdir
   check_fonts
   secrets_reminder
