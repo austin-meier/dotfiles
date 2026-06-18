@@ -366,6 +366,64 @@ redirected paths.
                     (when-let ((proj (project-current))) (project-root proj))
                     nil t))
 
+  ;; --- Ada build/run helpers -------------------------------------------------
+  ;; Like C/C++, Ada has several project shapes, so these detect them (Alire →
+  ;; GPR → loose file) and `compile' the right thing. `alr' is the Alire package
+  ;; manager, `gprbuild' builds an explicit project file, and `gnatmake' builds a
+  ;; single source straight to a binary beside it. Reuses `austin/cc--root-with'.
+  (defvar austin/ada-gnat-flags "-g -O0 -gnatwa"
+    "Flags passed to single-file `gnatmake' builds (debug info, all warnings).")
+
+  (defun austin/ada--alire-root ()
+    "Project root if it is an Alire crate (contains alire.toml), else nil."
+    (austin/cc--root-with "alire.toml"))
+
+  (defun austin/ada--gpr-file ()
+    "Path to the first .gpr project file in the project root, or nil."
+    (when-let* ((root (austin/cc--root-with "."))
+                (gprs (directory-files root t "\\.gpr\\'")))
+      (car gprs)))
+
+  (defun austin/ada--single-file-cmd (&optional run)
+    "`gnatmake' command for the current buffer; append a run step when RUN."
+    (let* ((src (or buffer-file-name (user-error "Buffer is not visiting a file")))
+           (out (file-name-sans-extension src)))
+      (format "gnatmake %s %s -o %s%s"
+              austin/ada-gnat-flags
+              (shell-quote-argument src)
+              (shell-quote-argument out)
+              (if run (format " && %s" (shell-quote-argument out)) ""))))
+
+  (defun austin/ada-build ()
+    "Build the current Ada project, or compile the current file.
+  alire.toml → `alr build'; a .gpr file → `gprbuild -P'; otherwise `gnatmake'
+  the current buffer to a binary beside the source."
+    (interactive)
+    (cond
+     ((austin/ada--alire-root)
+      (let ((default-directory (austin/ada--alire-root)))
+        (compile "alr build")))
+     ((austin/ada--gpr-file)
+      (compile (format "gprbuild -P %s"
+                       (shell-quote-argument (austin/ada--gpr-file)))))
+     (t (compile (austin/ada--single-file-cmd)))))
+
+  (defun austin/ada-compile-file ()
+    "Compile just the current Ada buffer to a binary beside the source."
+    (interactive)
+    (compile (austin/ada--single-file-cmd)))
+
+  (defun austin/ada-run ()
+    "Build the current Ada project/file and run it.
+  Alire crates → `alr run'; otherwise `gnatmake' the current buffer and execute
+  the resulting binary."
+    (interactive)
+    (cond
+     ((austin/ada--alire-root)
+      (let ((default-directory (austin/ada--alire-root)))
+        (compile "alr run")))
+     (t (compile (austin/ada--single-file-cmd t)))))
+
   (defun austin/lldb-dap-program ()
     "Locate the lldb-dap (formerly lldb-vscode) DAP adapter, portably.
   Checks PATH first, then falls back to the Xcode/CLT copy on macOS. Returns
@@ -638,6 +696,15 @@ redirected paths.
       "er" '(austin/cc-run :wk "compile + run file")
       "ef" '(austin/cc-compile-file :wk "compile file")
       "et" '(austin/cc-test :wk "test (ctest/make)")
+      "eR" '(recompile :wk "recompile last")
+      "ec" '(project-compile :wk "project compile…"))
+
+    (austin/leader-key
+      :keymaps 'ada-ts-mode-map
+      "e"  '(:ignore t :wk "build/run")
+      "eb" '(austin/ada-build :wk "build (alire/gpr/file)")
+      "er" '(austin/ada-run :wk "build + run")
+      "ef" '(austin/ada-compile-file :wk "compile file")
       "eR" '(recompile :wk "recompile last")
       "ec" '(project-compile :wk "project compile…"))
 
@@ -1489,13 +1556,24 @@ needs the ~racket~ binary on PATH at REPL time.
     (setq racket-smart-open-bracket-mode t))
 #+end_src
 ** Ada
+~ada_language_server~ (from the GNAT toolchain / Alire) drives completion,
+navigation, diagnostics, and format-on-save (gated on the binary — see
+[[#lsp][LSP]]). The ~ada-ts-mode~ tree-sitter mode and its grammar come from
+~treesit-auto~. Build/run lives under =SPC e= — see [[#keybindings][Keybindings]].
+
+The build helpers detect the project shape: an =alire.toml= crate builds with
+=alr build= / runs with =alr run=; a =*.gpr= project builds with =gprbuild -P=;
+and a loose source compiles to a binary beside it with =gnatmake=. Unlike C/C++
+there's no =SPC e t= — Ada has no canonical test runner — and no dap adapter
+wired here, so debugging stays on the command line for now.
 #+begin_src emacs-lisp
   (defun austin/lsp-ada ()
     "Start `lsp' only if ada_language_server is on PATH."
     (when (executable-find "ada_language_server") (lsp)))
 
   (use-package ada-ts-mode
-    :hook ((ada-ts-mode . austin/lsp-ada)))
+    :hook ((ada-ts-mode . austin/lsp-ada)
+           (ada-ts-mode . electric-pair-local-mode)))
 #+end_src
 ** C/C++
 ~clangd~ drives completion, navigation, diagnostics, and format-on-save (gated
