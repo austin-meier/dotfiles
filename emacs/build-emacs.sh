@@ -146,6 +146,53 @@ fetch_source() {
   success "Source ready at $SRC"
 }
 
+# ─── Patches ────────────────────────────────────────────────────────────────
+# TODO: remove apply_treesit_patch (and its call in main) once upstream Emacs
+# ships a fix for the libtree-sitter 0.25 ABI rename — likely 30.3 or 31.x.
+# The function is idempotent and self-skips once the source already references
+# ts_language_abi_version (whether because we patched it or because upstream
+# did), so leaving it in place after the fix lands is harmless — but the goal
+# is to delete it.
+apply_treesit_patch() {
+  header "Patch — treesit.c (libtree-sitter 0.25 ABI rename)"
+  local f="$SRC/src/treesit.c"
+  [[ -f "$f" ]] || { warn "treesit.c not found at $f — skipping patch"; return 0; }
+
+  # Already patched by us, or already fixed upstream — either way, no-op.
+  if grep -q 'ts_language_abi_version' "$f"; then
+    success "treesit.c already references ts_language_abi_version — patch not needed"
+    return 0
+  fi
+
+  info "Inserting shim after the WINDOWSNT block in $f..."
+  local tmp; tmp="$(mktemp)"
+  awk '
+    { print }
+    !patched && /^#endif[[:space:]]+\/\* WINDOWSNT \*\/$/ {
+      print ""
+      print ""
+      print "/* tree-sitter 0.25 renamed ts_language_version to ts_language_abi_version and"
+      print "   removed the old name (the bundled api.h bumped TREE_SITTER_LANGUAGE_VERSION"
+      print "   to 15).  On the direct-link path (every non-Windows build) map the old name"
+      print "   onto the new one so this file compiles against both old (< 0.25) and new"
+      print "   (>= 0.25) libtree-sitter.  The WINDOWSNT block above resolves the symbol by"
+      print "   name at load time and is intentionally left untouched.  */"
+      print "#if !defined WINDOWSNT && defined TREE_SITTER_LANGUAGE_VERSION \\"
+      print "    && TREE_SITTER_LANGUAGE_VERSION >= 15"
+      print "# define ts_language_version ts_language_abi_version"
+      print "#endif"
+      patched = 1
+    }
+    END { if (!patched) exit 1 }
+  ' "$f" > "$tmp" || {
+    rm -f "$tmp"
+    warn "WINDOWSNT anchor not found in treesit.c — upstream likely refactored. Skipping."
+    return 0
+  }
+  mv "$tmp" "$f"
+  success "Patched treesit.c"
+}
+
 # ─── Configure / build ────────────────────────────────────────────────────────
 configure_emacs() {
   header "Configure (clean slate)"
@@ -247,6 +294,7 @@ main() {
   info "Toolkit: $EMACS_GUI"
 
   fetch_source
+  apply_treesit_patch
   configure_emacs
   build_emacs
   verify
