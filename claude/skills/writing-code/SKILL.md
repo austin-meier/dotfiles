@@ -49,6 +49,18 @@ These hold in every language:
    curated utilities (e.g. `Result`/`Ok`/`Err`, `objectUtils`, `arrayUtils`) before writing a
    one-off helper.
 
+## Testing pure functions
+
+I write pure functions wherever I can, and pure functions are cheap to test, so:
+
+- When I add pure functions and the project allows it, write tests for them.
+- If the project has no test runner, set one up and add a runnable `test` script (so there's an
+  `npm run test` / `cargo test` / equivalent).
+- **Prefer inline tests** when the language supports them well (e.g. Rust `#[cfg(test)]` modules).
+  If inline isn't practical, a simple `test/` directory that groups related tests logically is fine.
+- **Avoid heavy testing libraries.** Reach for the built-in or a lightweight runner first; only
+  pull in a library when it's lightweight and genuinely earns its place.
+
 ## Per-language files (read the relevant one)
 
 | Language | File |

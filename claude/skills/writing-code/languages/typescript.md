@@ -10,6 +10,14 @@ TS/JS-specific expressions of that style.
   state with tagged unions (`Union` / `Result` from the toolset). Composition over inheritance,
   always.
 
+## Types vs interfaces
+
+- **Default to `type`.** Compose with `&` (intersection) instead of `interface` inheritance
+  (`extends`). Props, data shapes, DTOs, unions, and intermediate types are always `type`.
+- **Reserve `interface` for genuine API-level behavior contracts:** something that is a
+  composable, replaceable API boundary (callers implement or swap it). Behavior contract =
+  `interface`; data contract = `type`.
+
 ## Null vs undefined
 
 - Never produce or compare against `null`. Absence is `undefined` (Clojure nil-punning).
@@ -64,6 +72,15 @@ copying them.
   invariants) or links to related code/docs.
 - No banner comments, no section dividers, no large JSDoc blocks. A comment should never be
   longer than the code it describes — clean functional code documents itself.
+
+## Testing
+
+See the cross-language testing rule in `../SKILL.md`. TS/JS specifics:
+
+- For a plain Node/TS project, a simple `test.js` (or the built-in `node --test`) wired to a
+  `"test": "node test.js"` script in `package.json` is usually enough. Don't pull in a heavy test
+  framework just to test some pure functions.
+- For a **Vite** project, use **vitest**.
 
 ## JAM+ projects
 
