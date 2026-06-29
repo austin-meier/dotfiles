@@ -28,6 +28,24 @@ TS/JS-specific expressions of that style.
   route handlers, or controllers — those load data, call `lib/` functions, return responses.
 - `"type": "module"` ESM. Prefer named exports.
 
+## React
+
+Always use **Atomic Design** to structure React components. Organize by composition level and
+compose upward:
+
+```
+components/
+  atoms/       # Buttons, Inputs, Labels - smallest building blocks
+  molecules/   # SearchBar, FormField - a few atoms combined into a useful unit
+  organisms/   # Header, NavigationBar, ProductGrid - molecules/atoms forming a distinct UI section
+  templates/   # DashboardLayout, AuthLayout - arrangements of organisms into a page skeleton
+  pages/       # HomePage, SettingsPage - a template wired to real data/state for a specific use
+```
+
+Place each component at the right level. Combined with the rules above: arrow-function
+components (never the `function` keyword), never the `class` keyword, composition over
+inheritance.
+
 ## Use the toolset — don't roll your own
 
 Before writing a helper, check `../references/typescript-utils.md`. Default to:
