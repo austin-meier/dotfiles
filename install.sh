@@ -287,6 +287,22 @@ check_fonts() {
   fi
 }
 
+# ─── Claude Code config ────────────────────────────────────────────────────────
+# Symlink the version-controlled Claude config (claude/) into ~/.claude and register
+# user-scope MCP servers. State under ~/.claude (history, sessions, credentials) is left
+# untouched — see claude/link.sh. Skipped silently if the claude CLI isn't installed.
+setup_claude_config() {
+  if ! command -v claude &>/dev/null; then
+    header "Claude config"
+    warn "claude CLI not found — skipping. Install Claude Code, then run: bash claude/link.sh"
+    return
+  fi
+  # link.sh defines setup_claude (and reuses these helpers since they're already defined).
+  # shellcheck source=claude/link.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/claude/link.sh"
+  setup_claude
+}
+
 # ─── Secrets reminder ────────────────────────────────────────────────────────
 secrets_reminder() {
   header "Secrets"
@@ -317,6 +333,7 @@ main() {
   install_neovim
   install_cpp_tools
   setup_zdotdir
+  setup_claude_config
   check_fonts
   secrets_reminder
 

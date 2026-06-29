@@ -16,6 +16,7 @@
 # ─── Tracked config directories ──────────────────────────────────────────────
 # Whitelisting a directory tracks its full contents (emacs/ carries its own
 # nested whitelist .gitignore). Re-exclude any in-tree junk further below.
+!/claude/
 !/clojure/
 !/emacs/
 !/git/
@@ -41,3 +42,10 @@ zsh/.zcompcache/
 
 # nvim — lazy.nvim runtime state (plugins live in XDG_DATA_HOME).
 nvim/.netrwhist
+
+# claude — defensive: the granular symlinks mean Claude's state never lands here,
+# but never let credentials/state/backups slip in if the layout ever changes.
+claude/.credentials.json
+claude/history.jsonl
+claude/**/*.backup-*
+claude/settings.local.json

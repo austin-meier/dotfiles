@@ -1,0 +1,24 @@
+{
+  "model": "opus[1m]",
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true,
+    "frontend-design@claude-code-plugins": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "effortLevel": "medium",
+  "autoUpdatesChannel": "latest",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('os').homedir()+'/.config/claude/hooks/code-style-guard.cjs')\""
+          }
+        ]
+      }
+    ]
+  }
+}

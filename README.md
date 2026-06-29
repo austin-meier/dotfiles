@@ -26,6 +26,7 @@ exec zsh
 | `emacs/` | DOOM Emacs config |
 | `ripgrep/config` | rg defaults — smart-case, hidden files, ignores .git/node_modules |
 | `git/ignore` | Global gitignore |
+| `claude/` | Claude Code config — symlinked into `~/.claude`; settings, skills, MCP servers (see `claude/README.md`) |
 
 ---
 

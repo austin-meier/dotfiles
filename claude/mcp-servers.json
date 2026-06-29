@@ -1,0 +1,13 @@
+{
+  "//": "User-scope MCP servers, version-controlled. The linkers (link.ps1 / link.sh) register each entry with `claude mcp add-json <name> '<json>' --scope user`, which writes into ~/.claude.json (NOT committed). Add a server by adding one entry here, then re-run the linker.",
+  "mcpServers": {
+    "atlassian": {
+      "type": "http",
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    },
+    "Matrixify": {
+      "type": "http",
+      "url": "https://mcp.matrixify.app/mcp"
+    }
+  }
+}

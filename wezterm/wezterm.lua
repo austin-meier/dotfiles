@@ -94,6 +94,24 @@ wezterm.on('update-right-status', function(window, _pane)
   window:set_right_status(wezterm.format(pieces))
 end)
 
+-- ─── Startup window sizing ─────────────────────────────────────────────────
+-- On Windows the old fixed initial_cols/rows opened a window larger than the
+-- screen. Size to a fraction of the active screen and center it instead.
+if is_windows then
+  wezterm.on('gui-startup', function(cmd)
+    local _, _, window = wezterm.mux.spawn_window(cmd or {})
+    local screen = wezterm.gui.screens().active
+    local w = math.floor(screen.width * 0.85)
+    local h = math.floor(screen.height * 0.85)
+    local gui = window:gui_window()
+    gui:set_inner_size(w, h)
+    gui:set_position(
+      screen.x + math.floor((screen.width - w) / 2),
+      screen.y + math.floor((screen.height - h) / 2)
+    )
+  end)
+end
+
 -- ─── Key bindings ──────────────────────────────────────────────────────────
 
 local keys = {
@@ -292,8 +310,6 @@ local config = {
   window_background_opacity = 0.96,
   macos_window_background_blur = 20,
   adjust_window_size_when_changing_font_size = false,
-  initial_cols = 220,
-  initial_rows = 50,
 
   -- Tab bar
   enable_tab_bar            = true,
@@ -335,10 +351,37 @@ local config = {
   key_tables = { copy_mode = copy_mode },
 }
 
--- Windows: prefer pwsh > powershell
+-- Windows: prefer pwsh > powershell.
+-- WezTerm has no `which` helper, so scan PATH for the executable ourselves.
+local function find_in_path(exe)
+  local path = os.getenv('PATH') or ''
+  for dir in path:gmatch('[^;]+') do
+    local candidate = dir .. '\\' .. exe
+    local f = io.open(candidate, 'r')
+    if f then
+      f:close()
+      return candidate
+    end
+  end
+  return nil
+end
+
+-- mac/linux: keep the original generous startup size (Windows is handled by
+-- the gui-startup handler above, which fits the window to the screen).
+if not is_windows then
+  config.initial_cols = 220
+  config.initial_rows = 50
+end
+
 if is_windows then
-  local pwsh = wezterm.which('pwsh.exe')
-  config.default_prog = pwsh and { 'pwsh.exe', '-NoLogo' } or { 'powershell.exe', '-NoLogo' }
+  -- Prefer Nushell, then pwsh, then the built-in powershell.
+  if find_in_path('nu.exe') then
+    config.default_prog = { 'nu.exe' }
+  elseif find_in_path('pwsh.exe') then
+    config.default_prog = { 'pwsh.exe', '-NoLogo' }
+  else
+    config.default_prog = { 'powershell.exe', '-NoLogo' }
+  end
 end
 
 return config
