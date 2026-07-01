@@ -1,0 +1,42 @@
+# Resolves as $XDG_CONFIG_HOME/git/config (~/.config/git/config), which git reads
+# natively on macOS, Linux, and Windows (HOME = %USERPROFILE%). This is the source
+# of truth for user-scope git settings. git reads ~/.gitconfig *after* this file,
+# so any single-valued key set there would override these — install.sh removes it.
+
+[user]
+	name = Austin M
+	email = austin.meier@hotmail.com
+
+# core.excludesFile is intentionally unset: git's default is already
+# $XDG_CONFIG_HOME/git/ignore, i.e. the ignore file sitting next to this one.
+
+[column]
+	ui = auto
+
+[branch]
+	sort = -committerdate
+
+[tag]
+	sort = version:refname
+
+[init]
+	defaultBranch = main
+
+[diff]
+	algorithm = histogram
+	colorMoved = plain
+	mnemonicPrefix = true
+	renames = true
+
+[pull]
+	rebase = true
+
+[push]
+	default = simple
+	autoSetupRemote = true
+	followTags = true
+
+[rebase]
+	autoSquash = true
+	autoStash = true
+	updateRefs = true

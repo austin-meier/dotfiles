@@ -182,6 +182,13 @@ local keys = {
   -- Meta
   { key = 'r', mods = 'CTRL|SHIFT', action = act.ReloadConfiguration },
   { key = 'p', mods = 'CTRL|SHIFT', action = act.ActivateCommandPalette },
+
+  -- Claude Code & other TUIs: make Shift+Enter insert a newline instead of
+  -- submitting. WezTerm sends plain CR for Shift+Enter by default (indistinguishable
+  -- from Enter), so emit Meta+Enter (ESC CR), which Claude Code maps to "insert
+  -- newline". SendString writes straight to the pane, so it won't trigger the
+  -- built-in ALT+Enter fullscreen binding.
+  { key = 'Enter', mods = 'SHIFT', action = act.SendString '\x1b\r' },
 }
 
 -- macOS: add CMD-based aliases that feel native

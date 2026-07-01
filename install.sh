@@ -234,6 +234,22 @@ install_cpp_tools() {
   success "C/C++ tooling ready"
 }
 
+# ─── Emacs ──────────────────────────────────────────────────────────────────
+# The emacs/ config loads natively from ~/.config/emacs, so this only checks for
+# the Emacs binary. Building it is a 20–40 min native-comp source compile, so it
+# stays an explicit opt-in via emacs/build-emacs.sh rather than running here.
+# Idempotent: does nothing but report when emacs is already on PATH.
+setup_emacs() {
+  header "Emacs"
+  if command -v emacs &>/dev/null; then
+    success "emacs $(emacs --version | head -1 | awk '{print $3}') already installed"
+    return
+  fi
+  local script; script="$(dirname "${BASH_SOURCE[0]}")/emacs/build-emacs.sh"
+  warn "Emacs not found — config at ~/.config/emacs won't run until it's installed."
+  info "Build the tuned native-comp Emacs with: bash $script"
+}
+
 # ─── zshenv ───────────────────────────────────────────────────────────────────
 setup_zdotdir() {
   header "Shell bootstrap"
@@ -277,6 +293,33 @@ set_default_shell() {
   fi
 }
 
+# ─── Git config ─────────────────────────────────────────────────────────────
+# The version-controlled config lives at git/config, which git reads natively as
+# $XDG_CONFIG_HOME/git/config (~/.config/git/config) — nothing to symlink. But git
+# reads ~/.gitconfig *after* that file, so a stray ~/.gitconfig would silently
+# override these settings. Remove it (backing up the original once) so git/config
+# wins. Idempotent: after the first run the backup exists and any regenerated
+# ~/.gitconfig is simply removed.
+setup_git_config() {
+  header "Git config"
+  local tracked="$HOME/.config/git/config"
+  [[ -f "$tracked" ]] || { warn "git/config missing at $tracked — skipping"; return; }
+
+  local legacy="$HOME/.gitconfig"
+  if [[ -e "$legacy" || -L "$legacy" ]]; then
+    local backup="$HOME/.gitconfig.pre-dotfiles.bak"
+    if [[ ! -e "$backup" ]]; then
+      cp "$legacy" "$backup" && info "Backed up existing ~/.gitconfig → $backup"
+    fi
+    rm -f "$legacy"
+    success "Removed ~/.gitconfig so git/config takes precedence"
+  else
+    success "No ~/.gitconfig present — git/config already wins"
+  fi
+
+  info "git identity: $(git config user.name) <$(git config user.email)>"
+}
+
 # ─── Fonts ────────────────────────────────────────────────────────────────────
 check_fonts() {
   header "Fonts"
@@ -290,13 +333,10 @@ check_fonts() {
 # ─── Claude Code config ────────────────────────────────────────────────────────
 # Symlink the version-controlled Claude config (claude/) into ~/.claude and register
 # user-scope MCP servers. State under ~/.claude (history, sessions, credentials) is left
-# untouched — see claude/link.sh. Skipped silently if the claude CLI isn't installed.
+# untouched — see claude/link.sh. Always runs: link.sh's setup_claude creates the
+# symlinks (no CLI needed) and skips only MCP registration when the claude CLI is
+# absent, so a fresh machine still gets its ~/.claude config linked.
 setup_claude_config() {
-  if ! command -v claude &>/dev/null; then
-    header "Claude config"
-    warn "claude CLI not found — skipping. Install Claude Code, then run: bash claude/link.sh"
-    return
-  fi
   # link.sh defines setup_claude (and reuses these helpers since they're already defined).
   # shellcheck source=claude/link.sh
   source "$(dirname "${BASH_SOURCE[0]}")/claude/link.sh"
@@ -332,7 +372,9 @@ main() {
   install_zsh_plugins
   install_neovim
   install_cpp_tools
+  setup_emacs
   setup_zdotdir
+  setup_git_config
   setup_claude_config
   check_fonts
   secrets_reminder
