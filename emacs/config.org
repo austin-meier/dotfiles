@@ -147,6 +147,18 @@ TODO:
   (use-package emacs :ensure nil :config (setq ring-bell-function #'ignore))
 #+end_src
 
+** exec-path-from-shell
+#+begin_src emacs-lisp
+  ;; On macOS the GUI app doesn't inherit the shell PATH, so tools like cargo,
+  ;; fd, clangd, etc. are invisible to Emacs and eshell. This reads PATH from
+  ;; your login shell and syncs it into exec-path and process-environment.
+  (when (eq system-type 'darwin)
+    (use-package exec-path-from-shell
+      :demand t
+      :config
+      (exec-path-from-shell-initialize)))
+#+end_src
+
 ** dash
 #+begin_src emacs-lisp
 (use-package dash)
@@ -918,7 +930,23 @@ default; use ~M-x describe-mode~ when you actually need to inspect active modes.
 #+begin_src emacs-lisp
 
   ;; Font Style
-  (defvar font-height 90)
+  ;; Pick a height based on the physical width of the monitor (in mm).
+  ;; Larger screen → you're likely sitting further away → bigger font.
+  ;; Tune the cond thresholds and heights to taste; these are sensible defaults:
+  ;;   laptop / small display  (<380mm wide, e.g. 14–16" MacBook) → 90
+  ;;   medium external         (380–599mm,   e.g. 24")             → 110
+  ;;   large external          (≥600mm,       e.g. 27"+)           → 130
+  (defun austin/font-height-for-display (&optional frame)
+    (let* ((attrs (and (display-graphic-p)
+                       (frame-monitor-attributes (or frame (selected-frame)))))
+           (mm-w  (and attrs (car (alist-get 'mm-size attrs)))))
+      (cond ((null mm-w)    90)
+            ((>= mm-w 600) 130)
+            ((>= mm-w 380) 110)
+            (t              90))))
+
+  (defvar font-height (austin/font-height-for-display)
+    "Font height chosen at startup from the display's physical size.")
   (setq-default line-spacing 0.2)
 
   (let ((font-name "AdwaitaMono Nerd Font"))
@@ -1572,8 +1600,17 @@ wired here, so debugging stays on the command line for now.
     (when (executable-find "ada_language_server") (lsp)))
 
   (use-package ada-ts-mode
+    :mode ("\\.adb\\'" "\\.ads\\'" "\\.adc\\'")
     :hook ((ada-ts-mode . austin/lsp-ada)
-           (ada-ts-mode . electric-pair-local-mode)))
+           (ada-ts-mode . electric-pair-local-mode))
+    :config
+    (setq ada-ts-mode-grammar-install 'auto)
+    (with-eval-after-load 'ada-ts-lspclient-lsp-mode
+      ;; Semantic tokens displace treesit font-lock and leave the buffer uncolored
+      ;; when the server doesn't deliver them cleanly.  Tree-sitter covers this well.
+      (setf (alist-get 'lsp-semantic-tokens-enable
+                       ada-ts-lspclient-lsp-mode-settings-alist)
+            nil)))
 #+end_src
 ** C/C++
 ~clangd~ drives completion, navigation, diagnostics, and format-on-save (gated
