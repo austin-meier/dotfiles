@@ -7,6 +7,9 @@ return { -- Autocompletion
 		{
 			"L3MON4D3/LuaSnip",
 			version = "2.*",
+			-- Skip jsregexp submodules: their relative-URL .gitmodules break
+			-- `git submodule update` on Windows, and we don't build jsregexp here anyway.
+			submodules = false,
 			build = (function()
 				-- Build Step is needed for regex support in snippets.
 				-- This step is not supported in many windows environments.

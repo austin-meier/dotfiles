@@ -14,9 +14,16 @@ paths:
   - "**/*.c"
   - "**/*.h"
   - "**/*.cpp"
+  - "**/*.cc"
+  - "**/*.cxx"
+  - "**/*.hpp"
+  - "**/*.hh"
   - "**/*.java"
   - "**/*.py"
   - "**/*.go"
+  - "**/*.lua"
+  - "**/*.sh"
+  - "**/*.bash"
 ---
 
 # Writing code in my style
