@@ -193,6 +193,49 @@ apply_treesit_patch() {
   success "Patched treesit.c"
 }
 
+# TODO: remove apply_treesit_pred_patch (and its call in main) once we build an
+# Emacs release that includes the tree-sitter 0.26 predicate fix — it landed on
+# master (31.1) and was never backported to the emacs-30 branch. libtree-sitter
+# 0.26 requires query predicate names to end in ? or ! (#match?), but Emacs 30.x
+# emits #match/#equal/#pred, so every font-lock query with a predicate fails to
+# compile and fontification silently aborts for the whole buffer. Rename both
+# the emitted names and the strings the predicate evaluator compares against.
+# The ?-suffixed names are also accepted by libtree-sitter < 0.26, so the patch
+# stays portable. Idempotent and self-skips once the source already uses
+# #match? (ours or upstream's).
+apply_treesit_pred_patch() {
+  header "Patch — treesit.c (libtree-sitter 0.26 predicate names)"
+  local f="$SRC/src/treesit.c"
+  [[ -f "$f" ]] || { warn "treesit.c not found at $f — skipping patch"; return 0; }
+
+  if grep -q '"#match?"' "$f"; then
+    success "treesit.c already uses #match? predicates — patch not needed"
+    return 0
+  fi
+  if ! grep -q 'build_pure_c_string ("#match")' "$f"; then
+    warn "predicate strings not found in treesit.c — upstream likely refactored. Skipping."
+    return 0
+  fi
+
+  info "Renaming predicate strings to their ?-suffixed forms in $f..."
+  local tmp; tmp="$(mktemp)"
+  sed \
+    -e 's/build_pure_c_string ("#equal")/build_pure_c_string ("#equal?")/' \
+    -e 's/build_pure_c_string ("#match")/build_pure_c_string ("#match?")/' \
+    -e 's/build_pure_c_string ("#pred")/build_pure_c_string ("#pred?")/' \
+    -e 's/build_pure_c_string ("equal")/build_pure_c_string ("equal?")/' \
+    -e 's/build_pure_c_string ("match")/build_pure_c_string ("match?")/' \
+    -e 's/build_pure_c_string ("pred")/build_pure_c_string ("pred?")/' \
+    "$f" > "$tmp"
+  if [[ "$(grep -c 'build_pure_c_string ("#\{0,1\}\(equal\|match\|pred\)?")' "$tmp")" -ne 6 ]]; then
+    rm -f "$tmp"
+    warn "Expected exactly 6 predicate strings after rename — treesit.c changed shape. Skipping."
+    return 0
+  fi
+  mv "$tmp" "$f"
+  success "Patched treesit.c"
+}
+
 # ─── Configure / build ────────────────────────────────────────────────────────
 configure_emacs() {
   header "Configure (clean slate)"
@@ -295,6 +338,7 @@ main() {
 
   fetch_source
   apply_treesit_patch
+  apply_treesit_pred_patch
   configure_emacs
   build_emacs
   verify
