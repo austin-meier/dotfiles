@@ -244,19 +244,28 @@ redirected paths.
       (open-window-below)
       (my/eshell-project-or-current-dir))
 
+    (defun my/eshell-project-or-current-dir-new-tab ()
+      "Like `my/eshell-project-or-current-dir' but in a new tab."
+      (interactive)
+      (austin/run-in-new-tab #'my/eshell-project-or-current-dir))
+
     (defun austin/git-stage-all ()
       "Stage all changes, including untracked files."
       (interactive)
       (magit-stage-modified t) 
       (message "All files staged"))
 
+    (defun austin/run-in-new-tab (fn)
+      "Create a new tab and call FN inside it."
+      (tab-bar-new-tab)
+      (funcall fn))
+
     (defun austin/tab-last-buffer ()
       "Open a new tab with the last buffer you were visiting."
       (interactive)
       ;; Get the previous buffer
       (let ((last-buf (other-buffer (current-buffer) t)))
-        (tab-bar-new-tab)
-        (switch-to-buffer last-buf)))
+        (austin/run-in-new-tab (lambda () (switch-to-buffer last-buf)))))
 
   (defun austin/text-scale-increase ()
     "Bump the default face height globally by 10 units (~1pt)."
@@ -539,8 +548,8 @@ redirected paths.
 
       "o"   '(:ignore t :wk "open")
       "od"  '(dired-jump :wk "open directory")
-      "ot"  '(my/eshell-project-or-current-dir :wk "open terminal")
-      "oT"  '(my/eshell-project-or-current-dir-other-window :wk "open terminal (window)")
+      "ot"  '(my/eshell-project-or-current-dir-other-window :wk "open terminal (window)")
+      "oT"  '(my/eshell-project-or-current-dir-new-tab :wk "open terminal (tab)")
       "oc"  '(open-config-file :wk "open config file")
       "oh"  `(,(cmd! (dired "~")) :wk "open home")
       "of"  '(treemacs :wk "open finder")
@@ -1407,20 +1416,15 @@ Auto-reindents the surrounding form as you type — feels right in lisps.
 #+end_src
 
 ** Rainbow Delimiters
-Colorizes matching parens by nesting depth across all the lisps. Declared here
-with a single ~:hook~ list (like Lispyville / Aggressive Indent above) rather
-than a bare ~use-package~. The ~:hook~ form makes use-package create an
-*autoload* for ~rainbow-delimiters-mode~, so the function is defined the moment
-any language hook references it. A bare declaration skips that autoload — which
-is why referencing it from another package's ~:hook~ raised "Symbol's function
-definition is void".
+Colorizes matching parens by nesting depth. Hooked to ~prog-mode~ so it's always
+enabled in every programming buffer (the lisps, and everything else), rather than
+per-language. The ~:hook~ form makes use-package create an *autoload* for
+~rainbow-delimiters-mode~, so the function is defined the moment any language hook
+references it. A bare declaration skips that autoload — which is why referencing
+it from another package's ~:hook~ raised "Symbol's function definition is void".
 #+begin_src emacs-lisp
 (use-package rainbow-delimiters
-  :hook ((emacs-lisp-mode       . rainbow-delimiters-mode)
-         (lisp-interaction-mode . rainbow-delimiters-mode)
-         (clojure-ts-mode       . rainbow-delimiters-mode)
-         (racket-mode           . rainbow-delimiters-mode)
-         (racket-repl-mode      . rainbow-delimiters-mode)))
+  :hook (prog-mode . rainbow-delimiters-mode))
 #+end_src
 
 ** Helpful
