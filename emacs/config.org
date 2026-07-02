@@ -1178,7 +1178,8 @@ for install commands.
     :hook (lsp-mode . flycheck-mode))
 
   (defun austin/lsp-ts ()
-    "Start `lsp' only if typescript-language-server is on PATH."
+    "Start `lsp' only if typescript-language-server is on PATH.
+  Serves both TypeScript and JavaScript buffers."
     (when (executable-find "typescript-language-server") (lsp)))
 
   (defun austin/lsp-rust ()
@@ -1247,6 +1248,7 @@ for install commands.
                                     "-j=4"))
     :hook ((typescript-ts-mode . austin/lsp-ts)
            (tsx-ts-mode . austin/lsp-ts)
+           (js-ts-mode . austin/lsp-ts)
            (rust-ts-mode . austin/lsp-rust)
            (json-ts-mode . austin/lsp-json)
            (c-ts-mode . austin/lsp-cpp)
@@ -1281,7 +1283,11 @@ libtree-sitter 0.20.8 (ABI 14) and rejects these modern grammars; the old
   (treesit-auto-install 'prompt)
   :config
   (treesit-auto-add-to-auto-mode-alist 'all)
-  (global-treesit-auto-mode))
+  (global-treesit-auto-mode)
+  ;; treesit-auto's javascript recipe only maps `.js'; route the other JS
+  ;; extensions to js-ts-mode too so they get tree-sitter + lsp (see LSP).
+  (add-to-list 'auto-mode-alist '("\\.[cm]js\\'" . js-ts-mode))
+  (add-to-list 'auto-mode-alist '("\\.jsx\\'" . js-ts-mode)))
 #+end_src
 
 ** Debugger
@@ -1418,13 +1424,15 @@ Auto-reindents the surrounding form as you type — feels right in lisps.
 ** Rainbow Delimiters
 Colorizes matching parens by nesting depth. Hooked to ~prog-mode~ so it's always
 enabled in every programming buffer (the lisps, and everything else), rather than
-per-language. The ~:hook~ form makes use-package create an *autoload* for
+per-language. ~racket-repl-mode~ is added explicitly since it derives from
+~comint-mode~, not ~prog-mode~. The ~:hook~ form makes use-package create an *autoload* for
 ~rainbow-delimiters-mode~, so the function is defined the moment any language hook
 references it. A bare declaration skips that autoload — which is why referencing
 it from another package's ~:hook~ raised "Symbol's function definition is void".
 #+begin_src emacs-lisp
 (use-package rainbow-delimiters
-  :hook (prog-mode . rainbow-delimiters-mode))
+  :hook ((prog-mode        . rainbow-delimiters-mode)
+         (racket-repl-mode . rainbow-delimiters-mode)))
 #+end_src
 
 ** Helpful
