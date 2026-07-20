@@ -1,6 +1,6 @@
 ---
 name: jam-plus
-description: High-level map of JAM+ (jambnc / jamplus) - the user's employer, a DTC print e-commerce company - its systems, repos, domain model, and the JSON-Schema-driven type pipeline. Use whenever working in any JAM codebase (references jam/jambnc/jamplus, or depends on @jambnc/common, @jambnc/font, @jamplus/kronos, or @jam/schemas). Composes with the writing-code skill.
+description: High-level map of JAM+ (jambnc / jamplus) - the user's employer, a DTC print e-commerce company - its systems, repos, domain model, the JSON-Schema-driven type pipeline, and how JAM+ Shopify apps are built (serverless React Router 7 + SST). Use whenever working in any JAM codebase (references jam/jambnc/jamplus, a JAM+ Shopify app, or depends on @jambnc/common, @jambnc/font, @jamplus/kronos, or @jam/schemas). Composes with the writing-code skill.
 ---
 
 # JAM+
@@ -42,7 +42,9 @@ personal style guide conflict, the personal style guide wins.
 | **schema** | Source of truth for domain models (JSON Schema). Java/Maven project; schemas under `resources/schemas/v1/`. | `~/coding/schema/jam` |
 | **@jam/schemas (ts-types-jam)** | Generated Zod+TS module published from `schema` via the action. Consumed everywhere. | repo `JAMBNC/ts-types-jam` |
 | **generate-typescript-from-json-schema-action** | Custom GitHub Action (user-authored) that turns the JSON Schemas into the `ts-types-jam` module. | `~/coding/js/generate-typescript-from-json-schema-action` |
-| **shop-designer-app** | Embeds the hosted olympus/hermes designer into Shopify. Hosted on **AWS ECS**. | `~/coding/js/shop-designer-app` |
+| **shop-designer-app** | Embeds the hosted olympus/hermes designer into Shopify. Hosted on **AWS ECS** (predates the serverless template). | `~/coding/js/shop-designer-app` |
+| **shopify-app-template** | Project-agnostic starter for new JAM+ Shopify apps: React Router 7, serverless on AWS Lambda via **SST**, DynamoDB sessions. Clone → rename → build. See `references/shopify-apps.md`. | `~/coding/js/shopify-jamplus-app-template` |
+| **shopify-fulfillment-app** | First app built on the template (the reference SST build). Registers JAM+ as a Shopify fulfillment service; proxies Shopify ↔ backend (OMS) over SQS FIFO. See `references/shopify-apps.md`. | `~/coding/js/shopify-jamplus-fulfillment-app` |
 | **magento2 (`jam`)** | Historical/primary storefront (PHP/Magento2). Contains two legacy designers (old folders.com JS designer; the `Kadro\Designer` intermediary module). | `~/coding/php/jam` |
 | **ReactEcom** | Hand-rolled React front end for Magento (predates olympus, older structure; now pulls in `@jambnc/common`). | `~/coding/js/reactecom` |
 | **netsuite-kit** | NetSuite dashboard + bundled SDF project (NetSuite scripts: feed management to Shopify/Magento, deploy/validate). | `~/coding/js/netsuite-kit` |
@@ -64,11 +66,15 @@ ECS). The designer produces a `DesignState` that travels with the order.
 - **olympus** is the strategic bet: a portable TS+React designer, eventually paired with a new
   storefront-agnostic designer backend (no repo yet, not the user's responsibility), to be sold
   to other companies for a % fee.
+- **New Shopify apps are serverless** (React Router 7 + SST → Lambda, DynamoDB sessions), built
+  from the `shopify-app-template`. This is the standard, not `shop-designer-app`'s older ECS
+  hosting. See `references/shopify-apps.md`.
 
 ## References
 
 - `references/systems.md` — every repo: path, remote, purpose, status.
+- `references/shopify-apps.md` — how JAM+ Shopify apps are built: the serverless stack, the template, conventions, deploy flow.
 - `references/packages.md` — olympus workspaces, `@jambnc/common`, registry/`.npmrc` setup.
 - `references/schema-pipeline.md` — the JSON-Schema → Zod/TS → `@jam/schemas` pipeline.
 - `references/schema-index.md` — index of domain schema objects and where to find them.
-- `../writing-code/references/typescript-utils.md` — the utility toolset (bundled in `@jambnc/common`).
+- `../writing-code/languages/typescript.md` — the utility toolset discovery map (bundled in `@jambnc/common`); source lives in `../../libs/typescript/utils/`.

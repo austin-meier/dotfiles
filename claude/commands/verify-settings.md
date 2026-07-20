@@ -37,9 +37,11 @@ re-registers from the manifest.
 ## 3. Skills present + discoverable
 
 Confirm these files exist (through the symlink is fine):
-- `skills/writing-code/SKILL.md`, `skills/writing-code/languages/typescript.md`, `skills/writing-code/references/typescript-utils.md`
+- `skills/writing-code/SKILL.md`, `skills/writing-code/languages/typescript.md`
 - `skills/writing-docs/SKILL.md`
 - `skills/jam-plus/SKILL.md` + `skills/jam-plus/references/{systems,packages,schema-pipeline,schema-index}.md`
+- `libs/typescript/utils/` — the TS toolset the `writing-code` skill points to. It must be
+  linked into `~/.claude/libs/` (the linker handles this) so the skill's relative paths resolve.
 
 Also confirm `writing-code`, `writing-docs`, and `jam-plus` appear in **your own available-skills
 list** for this session (proves discovery, not just files on disk). FAIL remediation: ensure the

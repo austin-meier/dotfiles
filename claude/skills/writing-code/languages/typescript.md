@@ -56,15 +56,43 @@ inheritance.
 
 ## Use the toolset — don't roll your own
 
-Before writing a helper, check `../references/typescript-utils.md`. Default to:
-- `Result<T,E>`, `Ok()`, `Err()`, `tryCatch` (from `result`) for expected errors — prefer over
-  throwing.
-- `objectUtils` (`getIn`, `updateIn`, `mapValues`, `invert`, ...) for immutable object work.
-- `arrayUtils` (`groupBy`, `keyBy`, `first`, `unique`, `keep`, ...) for sequences.
-- `functionUtils` (`identity`, `defined`, `memoize`, ...).
+Before writing a helper, reach for the curated, Clojure-inspired toolset. The **authoritative
+source lives in this repo** — read the actual `.ts` file for exact signatures, overloads, and
+doc comments (the source is the index; don't trust a hand-written summary over it):
 
-In a project that depends on `@jambnc/common`, import these from `@jambnc/common` rather than
-copying them.
+    ../../../libs/typescript/utils/
+
+That path is relative to this file. It resolves to `~/.config/claude/libs/typescript/utils/`
+(and to `~/.claude/libs/...` via the linked config — see `link.sh` / `link.ps1`). The same
+modules ship inside `@jambnc/common`; in a project that depends on it, **import from
+`@jambnc/common`** rather than copying — see the `jam-plus` skill.
+
+Discovery map — module → what it's for → key exports (open the file for signatures):
+
+**Core**
+- `result` — `Result<T,E>` typed error handling; prefer over throwing. `Ok`, `Err`, `isOk`/`isErr`,
+  `map`, `orElse`, `orElseCall`, `orElseMaybe`, `tryCatch`, `tryCatchAsync`, `collectOk`.
+- `objectUtils` — immutable nested access/transform. `getIn`, `updateIn`, `deleteIn`, `resolveIn`,
+  `mapValues`, `mapKeys`, `deepMerge`, `invert`, `isObject`.
+- `arrayUtils` — sequences. `first`/`last`, `butFirst`/`butLast`, `count`, `groupBy`, `keyBy`,
+  `indexBy`, `unique`/`uniqueBy`, `keep`, `intersect`/`intersectBy`, `range`/`rangeInclusive`, `Sorting`.
+- `functionUtils` — functional primitives. `identity`, `defined` (`x != null` guard), `isEmpty`,
+  `memoize`, `take`.
+- `stringUtils` — `isString`, `capitalizeFirst`, `asHex`, `decodeHtmlEntities`, `acronymize`,
+  `levenshtein`, `fuzzyScore`.
+- `numberUtils` — `parseNumber` (returns `Result`, not `NaN`/throw), `fromOrdinal`, `toOrdinal`.
+- `union` — `Union<Mappings>` tagged-union builder; backs `Result`. Use for discriminated unions
+  instead of class hierarchies.
+
+**Domain / platform (use when relevant)**
+- `dimension` — `Dim` helpers + branded `Dimension` type (`'in'|'pt'|'cm'|'m'|'mm'`), `Dimensionable`.
+- `pricingUtils` — tiered/bundle pricing (`getTier`, `getUnitPriceAtTier`, `getAddToCartPrice`, ...).
+- `coverageUtils` — ingredient/coverage maps (`calculateCoverage`, `getCoverageAdder`).
+- `zodUtils` — `extractDefaults(schema)` + zod helpers (pairs with `@jam/schemas`).
+- `fetchUtils` — `fetchFrom<T>(...)` typed fetch wrapper.
+- `environmentUtils` — `getEnvironmentValue`, `getOrThrow`, `getEnvironment`.
+- `jwtUtils` — `decodeJwtPayload`, `isJwtExpired`.
+- `cookieUtils` — `parseCookie`, `getDocumentCookie` (memoized).
 
 ## Comments
 

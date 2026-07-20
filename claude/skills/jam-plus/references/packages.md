@@ -6,8 +6,9 @@ These are published from the `olympus` monorepo and consumed across JAM projects
 
 - **`@jambnc/common`** (olympus `packages/jam-common`) — "JAM Plus Common definitions module."
   The big one: business logic, manipulation of the domain schemas, and the portable utility
-  toolset (`Result`/`Ok`/`Err`, `objectUtils`, `arrayUtils`, `pricingUtils`, etc. — indexed in
-  `../../writing-code/references/typescript-utils.md`). **Import shared logic/utils from here**
+  toolset (`Result`/`Ok`/`Err`, `objectUtils`, `arrayUtils`, `pricingUtils`, etc. — mapped in
+  `../../writing-code/languages/typescript.md`, source in `../../../libs/typescript/utils/`).
+  **Import shared logic/utils from here**
   instead of re-implementing.
 - **`@jambnc/font`** (olympus `packages/font`) — font loading + measurement utilities.
 - **`@jamplus/kronos`** (olympus `packages/kronos`) — manages the iframe + postMessage

@@ -38,6 +38,7 @@ CLAUDE_LINKS=(
   commands
   agents
   output-styles
+  libs
 )
 
 claude_link_item() {

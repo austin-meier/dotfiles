@@ -68,6 +68,7 @@ $Links = @(
     'commands'
     'agents'
     'output-styles'
+    'libs'
 )
 
 function Link-Item {

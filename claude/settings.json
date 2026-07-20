@@ -1,13 +1,4 @@
 {
-  "model": "opus[1m]",
-  "enabledPlugins": {
-    "typescript-lsp@claude-plugins-official": true,
-    "frontend-design@claude-code-plugins": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "clangd-lsp@claude-plugins-official": true
-  },
-  "effortLevel": "max",
-  "autoUpdatesChannel": "latest",
   "permissions": {
     "allow": [
       "mcp__atlassian__atlassianUserInfo",
@@ -45,9 +36,14 @@
       "mcp__Matrixify__matrixify_export_get_setup_filters",
       "mcp__Matrixify__matrixify_import_get_setup",
       "mcp__Matrixify__matrixify_import_get_supported_formats",
-      "mcp__Matrixify__matrixify_import_get_external_formats"
+      "mcp__Matrixify__matrixify_import_get_external_formats",
+      "Read(~/.claude/skills/**)",
+      "Read(~/.claude/libs/**)",
+      "Read(~/.config/claude/skills/**)",
+      "Read(~/.config/claude/libs/**)"
     ]
   },
+  "model": "opus[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -60,5 +56,15 @@
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true,
+    "frontend-design@claude-code-plugins": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "effortLevel": "high",
+  "autoUpdatesChannel": "latest",
+  "tui": "fullscreen",
+  "switchModelsOnFlag": true
 }

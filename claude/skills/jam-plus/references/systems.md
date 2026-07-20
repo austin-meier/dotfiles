@@ -10,7 +10,9 @@ can be cloned from the remote.
 | **schema** | `~/coding/schema/jam` | `git@github.com:JAMBNC/schema.git` | JSON-Schema source of truth for all domain models. Java/Maven project. |
 | **ts-types-jam** | (consumed as `@jam/schemas`) | `git@github.com:JAMBNC/ts-types-jam.git` | **Generated** output of the action — Zod+TS domain types as an ESM module. Don't hand-edit; it's regenerated. |
 | **generate-typescript-from-json-schema-action** | `~/coding/js/generate-typescript-from-json-schema-action` | `git@github.com:JAMBNC/generate-typescript-from-json-schema-action.git` | User-authored GitHub Action: JSON Schema → Zod+TS → updates `ts-types-jam`. |
-| **shop-designer-app** | `~/coding/js/shop-designer-app` | `git@github.com:JAMBNC/shop-designer-app.git` | Embeds the hosted olympus/hermes designer into Shopify. Hosted on **AWS ECS**. |
+| **shop-designer-app** | `~/coding/js/shop-designer-app` | `git@github.com:JAMBNC/shop-designer-app.git` | Embeds the hosted olympus/hermes designer into Shopify. Hosted on **AWS ECS** (predates the serverless template below). |
+| **shopify-app-template** | `~/coding/js/shopify-jamplus-app-template` | `git@github.com:JAMBNC/shopify-jamplus-app-template.git` | **Project-agnostic starter for new JAM+ Shopify apps.** React Router 7, serverless on AWS Lambda via **SST**, DynamoDB sessions. Clone → rename → build. See `shopify-apps.md`. |
+| **shopify-fulfillment-app** | `~/coding/js/shopify-jamplus-fulfillment-app` | `git@github.com:JAMBNC/shopify-jamplus-fulfillment-app.git` | First app built on the template (and the reference SST build). Registers JAM+ as a Shopify **fulfillment service**; proxies Shopify ↔ JAM+ backend (OMS) over SQS FIFO. See `shopify-apps.md`. |
 | **magento2** | `~/coding/php/jam` | `github.com/JAMBNC/magento2.git` | Historical/primary storefront (PHP/Magento2). Holds two legacy designers (see below). |
 | **ReactEcom** | `~/coding/js/reactecom` (intended name `react-ecom`) | `git@github.com:JAMBNC/ReactEcom.git` | Hand-rolled React front end for Magento (package name "Navi UI Components"). First React project (pre-olympus), older structure; consumes `@jambnc/common` + `@jam/schemas`. Example of the **GitHub-pull** consumption path (`.npmrc` + `github:` dep). For idiomatic usage overall, prefer **olympus**. |
 | **netsuite-kit** | `~/coding/js/netsuite-kit` | `git@github.com:JAMBNC/netsuite-kit.git` | NetSuite dashboard + bundled **SDF** project (NetSuite scripts: feed mgmt to Shopify/Magento, deploy + validate code). |
@@ -38,7 +40,10 @@ can be cloned from the remote.
 - **The designer bundle** (hermes + kronos) currently builds to a **JS bundle on S3**. Storefronts
   load that bundle and talk to it via `@jamplus/kronos` (iframe + postMessage).
 - **shop-designer-app** runs on **AWS ECS** — the Shopify-side app that embeds/serves the designer
-  into Shopify.
+  into Shopify. It predates the serverless standard.
+- **New Shopify apps** deploy **serverless** (AWS Lambda + CloudFront via SST, DynamoDB sessions),
+  built from the `shopify-app-template`. This is the going-forward pattern, not ECS. See
+  `shopify-apps.md`.
 
 ## Platform state
 

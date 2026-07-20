@@ -77,7 +77,8 @@ I write pure functions wherever I can, and pure functions are cheap to test, so:
 
 ## References
 
-- `references/typescript-utils.md` — index of the portable TS utility toolset.
+- The portable TS/JS utility toolset (source of truth): `../../libs/typescript/utils/` — read the
+  `.ts` files directly. `languages/typescript.md` has the discovery map (module → key exports).
 
 ## Related skills
 
