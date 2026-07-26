@@ -43,11 +43,7 @@
       "Read(~/.config/claude/libs/**)"
     ]
   },
-<<<<<<< Updated upstream
-  "model": "opus[1m]",
-=======
   "model": "opus",
->>>>>>> Stashed changes
   "hooks": {
     "PreToolUse": [
       {
