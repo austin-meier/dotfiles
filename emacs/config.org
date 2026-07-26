@@ -445,6 +445,80 @@ redirected paths.
         (compile "alr run")))
      (t (compile (austin/ada--single-file-cmd t)))))
 
+  ;; --- JS/TS run helpers -------------------------------------------------------
+  ;; Same detection idea as C/C++ and Ada: figure out the project shape and run
+  ;; the right thing. package.json with a `dev' script → long-running dev server
+  ;; in a comint buffer in its own tab; anything else → run the file with node
+  ;; (modern node strips TS types, so .ts files work too). The package manager is
+  ;; inferred from the lockfile. Reuses `austin/cc--root-with'.
+  (defun austin/js--package-json-root ()
+    "Project root if it contains package.json, else nil."
+    (austin/cc--root-with "package.json"))
+
+  (defun austin/js--npm-scripts ()
+    "Alist of (name . command) scripts from the project package.json, or nil."
+    (when-let* ((root (austin/js--package-json-root)))
+      (ignore-errors
+        (with-temp-buffer
+          (insert-file-contents (expand-file-name "package.json" root))
+          (alist-get 'scripts (json-parse-buffer :object-type 'alist))))))
+
+  (defun austin/js--package-manager (root)
+    "Package manager for ROOT, inferred from its lockfile (npm by default)."
+    (cond
+     ((file-exists-p (expand-file-name "pnpm-lock.yaml" root)) "pnpm")
+     ((file-exists-p (expand-file-name "yarn.lock" root)) "yarn")
+     ((or (file-exists-p (expand-file-name "bun.lock" root))
+          (file-exists-p (expand-file-name "bun.lockb" root))) "bun")
+     (t "npm")))
+
+  (defun austin/js-run-file ()
+    "Run the current buffer through node."
+    (interactive)
+    (let ((src (or buffer-file-name (user-error "Buffer is not visiting a file"))))
+      (compile (format "node %s" (shell-quote-argument src)))))
+
+  (defun austin/js-dev-server ()
+    "Run the project's `dev' script in a comint buffer in a new tab.
+  If the dev server is already running, jump to its buffer instead of starting
+  a second one."
+    (interactive)
+    (let* ((root (or (austin/js--package-json-root)
+                     (user-error "No package.json in the current project")))
+           (name (file-name-nondirectory (directory-file-name root)))
+           (buf (get-buffer (format "*dev: %s*" name))))
+      (unless (alist-get 'dev (austin/js--npm-scripts))
+        (user-error "No `dev' script in package.json"))
+      (if (and buf (get-buffer-process buf))
+          (austin/run-in-new-tab (lambda () (switch-to-buffer buf)))
+        (austin/run-in-new-tab
+         (lambda ()
+           (let ((default-directory root))
+             (switch-to-buffer
+              (compilation-start (format "%s run dev" (austin/js--package-manager root))
+                                 t (lambda (_) (format "*dev: %s*" name))))
+             (delete-other-windows)))))))
+
+  (defun austin/js-run ()
+    "DWIM run: dev server when the project has a `dev' script, else node.
+  package.json with a `dev' script → `austin/js-dev-server' in a new tab;
+  otherwise run the current file through node."
+    (interactive)
+    (if (alist-get 'dev (austin/js--npm-scripts))
+        (austin/js-dev-server)
+      (austin/js-run-file)))
+
+  (defun austin/js-npm-script ()
+    "Pick a script from the project package.json and run it with `compile'."
+    (interactive)
+    (let* ((root (or (austin/js--package-json-root)
+                     (user-error "No package.json in the current project")))
+           (scripts (or (austin/js--npm-scripts)
+                        (user-error "No scripts in package.json")))
+           (script (completing-read "Run script: " (mapcar #'car scripts) nil t))
+           (default-directory root))
+      (compile (format "%s run %s" (austin/js--package-manager root) script))))
+
   (defun austin/lldb-dap-program ()
     "Locate the lldb-dap (formerly lldb-vscode) DAP adapter, portably.
   Checks PATH first, then falls back to the Xcode/CLT copy on macOS. Returns
@@ -726,6 +800,16 @@ redirected paths.
       "eb" '(austin/ada-build :wk "build (alire/gpr/file)")
       "er" '(austin/ada-run :wk "build + run")
       "ef" '(austin/ada-compile-file :wk "compile file")
+      "eR" '(recompile :wk "recompile last")
+      "ec" '(project-compile :wk "project compile…"))
+
+    (austin/leader-key
+      :keymaps '(typescript-ts-mode-map tsx-ts-mode-map js-ts-mode-map)
+      "e"  '(:ignore t :wk "run")
+      "er" '(austin/js-run :wk "run (dev server/node)")
+      "ed" '(austin/js-dev-server :wk "dev server (tab)")
+      "ef" '(austin/js-run-file :wk "run file (node)")
+      "es" '(austin/js-npm-script :wk "npm script…")
       "eR" '(recompile :wk "recompile last")
       "ec" '(project-compile :wk "project compile…"))
 

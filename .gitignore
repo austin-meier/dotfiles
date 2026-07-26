@@ -39,6 +39,7 @@ zsh/local.zsh
 zsh/.zsh_history
 zsh/.zcompdump*
 zsh/.zcompcache/
+zsh/.zsh_sessions/
 
 # nvim — lazy.nvim runtime state (plugins live in XDG_DATA_HOME).
 nvim/.netrwhist
