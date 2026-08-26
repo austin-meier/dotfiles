@@ -1,6 +1,6 @@
 ---
 name: jam-plus
-description: High-level map of JAM+ (jambnc / jamplus) - the user's employer, a DTC print e-commerce company - its systems, repos, domain model, the JSON-Schema-driven type pipeline, and how JAM+ Shopify apps are built (serverless React Router 7 + SST). Use whenever working in any JAM codebase (references jam/jambnc/jamplus, a JAM+ Shopify app, or depends on @jambnc/common, @jambnc/font, @jamplus/kronos, or @jam/schemas). Composes with the writing-code skill.
+description: High-level map of JAM+ (jambnc / jamplus) - the user's employer, a DTC print e-commerce company - its systems, repos, domain model, the JSON-Schema-driven type pipeline, how JAM+ Shopify apps are built (serverless React Router 7 + SST), and the admin-ui OMS backend (Shopify <-> NetSuite order management). Use whenever working in any JAM codebase (references jam/jambnc/jamplus, admin-ui / the JAM Admin App / OMS, a JAM+ Shopify app, or depends on @jambnc/common, @jambnc/font, @jamplus/kronos, or @jam/schemas). Composes with the writing-code skill.
 ---
 
 # JAM+
@@ -44,7 +44,8 @@ personal style guide conflict, the personal style guide wins.
 | **generate-typescript-from-json-schema-action** | Custom GitHub Action (user-authored) that turns the JSON Schemas into the `ts-types-jam` module. | `~/coding/js/generate-typescript-from-json-schema-action` |
 | **shop-designer-app** | Embeds the hosted olympus/hermes designer into Shopify. Hosted on **AWS ECS** (predates the serverless template). | `~/coding/js/shop-designer-app` |
 | **shopify-app-template** | Project-agnostic starter for new JAM+ Shopify apps: React Router 7, serverless on AWS Lambda via **SST**, DynamoDB sessions. Clone → rename → build. See `references/shopify-apps.md`. | `~/coding/js/shopify-jamplus-app-template` |
-| **shopify-fulfillment-app** | First app built on the template (the reference SST build). Registers JAM+ as a Shopify fulfillment service; proxies Shopify ↔ backend (OMS) over SQS FIFO. See `references/shopify-apps.md`. | `~/coding/js/shopify-jamplus-fulfillment-app` |
+| **shopify-fulfillment-app** | First app built on the template (the reference SST build). Registers JAM+ as a Shopify fulfillment service; proxies Shopify ↔ backend (OMS = admin-ui) over SQS FIFO. See `references/shopify-apps.md`. | `~/coding/js/shopify-jamplus-fulfillment-app` |
+| **admin-ui** (JAM Admin App / **OMS backend**) | Back-office app + the OMS: ingests Shopify orders and pushes them to NetSuite, plus design management/prepress and catalog/config admin. Fastify-on-Lambda + React SPA + Postgres (`jamapp`). The "JAM+ backend (OMS)" the fulfillment app talks to. **Read its `CONTEXT.md` first.** See `references/admin-ui.md`. | `~/coding/js/jam-app` |
 | **magento2 (`jam`)** | Historical/primary storefront (PHP/Magento2). Contains two legacy designers (old folders.com JS designer; the `Kadro\Designer` intermediary module). | `~/coding/php/jam` |
 | **ReactEcom** | Hand-rolled React front end for Magento (predates olympus, older structure; now pulls in `@jambnc/common`). | `~/coding/js/reactecom` |
 | **netsuite-kit** | NetSuite dashboard + bundled SDF project (NetSuite scripts: feed management to Shopify/Magento, deploy/validate). | `~/coding/js/netsuite-kit` |
@@ -73,6 +74,7 @@ ECS). The designer produces a `DesignState` that travels with the order.
 ## References
 
 - `references/systems.md` — every repo: path, remote, purpose, status.
+- `references/admin-ui.md` — the JAM Admin App / OMS backend: what it does, how it connects (Shopify webhooks, fulfillment-app SQS handoff, NetSuite push), and that its `CONTEXT.md` is the entry point.
 - `references/shopify-apps.md` — how JAM+ Shopify apps are built: the serverless stack, the template, conventions, deploy flow.
 - `references/packages.md` — olympus workspaces, `@jambnc/common`, registry/`.npmrc` setup.
 - `references/schema-pipeline.md` — the JSON-Schema → Zod/TS → `@jam/schemas` pipeline.

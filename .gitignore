@@ -50,3 +50,6 @@ claude/.credentials.json
 claude/history.jsonl
 claude/**/*.backup-*
 claude/settings.local.json
+
+# clojure cache
+**/.cpcache
