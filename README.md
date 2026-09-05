@@ -1,140 +1,57 @@
 # dotfiles
 
-doom-one themed environment. WezTerm + Zsh + Starship + Neovim + Emacs, tuned to feel consistent across the stack.
+This repo **is** `~/.config`. Not a folder that gets symlinked into place, the XDG config
+directory itself, tracked with a whitelist `.gitignore` so the state every app on the system
+dumps in here stays invisible.
 
-## Quick install
+One doom-one themed environment across WezTerm, Zsh, Starship, Neovim, Emacs, and Claude Code,
+running on macOS, Linux, and Windows via WSL2. The editors deliberately share a keybinding
+vocabulary: the `SPC` leader trees in Emacs and Neovim mirror each other, and WezTerm's pane and
+copy-mode bindings mirror both.
+
+## Install
 
 ```sh
-git clone <your-dotfiles-repo> ~/.config
+git clone git@github.com:austin-meier/dotfiles.git ~/.config
 cd ~/.config
-bash install.sh
+bash install.sh        # macOS / Linux, and inside WSL2 on Windows
 exec zsh
 ```
 
-`install.sh` detects the OS and installs all required tools. See [Platform notes](#platform-notes) for caveats.
+Windows hosts WezTerm and its font; the dotfiles themselves run in WSL2:
 
----
+```powershell
+pwsh install.ps1                      # WezTerm + font + WSL2 check
+wsl -- bash ~/.config/install.sh      # the actual dotfiles
+```
 
-## What's in here
+The installer is TypeScript run through Node's type stripping, so **Node >= 22.18 is the only
+prerequisite** and there's no build step. Run it as often as you like: it checks before it acts,
+repairs what's missing, and no-ops when everything's fine. `--dry-run` prints the plan without
+touching anything.
 
-| Path | Purpose |
-|------|---------|
-| `wezterm/` | Terminal emulator config — doom-one colors, powerline tabs, vi copy mode |
-| `zsh/` | Shell config via `ZDOTDIR` — eza, fd, fzf, zoxide, starship |
-| `starship.toml` | Prompt — doom-one palette, directory + git + language versions |
-| `nvim/` | Neovim config |
-| `emacs/` | DOOM Emacs config |
-| `ripgrep/config` | rg defaults — smart-case, hidden files, ignores .git/node_modules |
-| `git/ignore` | Global gitignore |
-| `claude/` | Claude Code config — symlinked into `~/.claude`; settings, skills, MCP servers (see `claude/README.md`) |
+## Documentation
 
----
+Start at **[CLAUDE.md](CLAUDE.md)** for the index, or jump straight in:
+
+| Doc | Covers |
+|-----|--------|
+| [Install and bootstrap](docs/install.md) | The program registry, per-platform dispatch, idempotency, new machines |
+| [Windows migration](WINDOWS-MIGRATION.md) | One-time runbook for moving a Windows box to WSL2 |
+| [Repo layout](docs/repo-layout.md) | The whitelist gitignore, adding a config, what stays out of git |
+| [Zsh](docs/zsh.md) | `ZDOTDIR`, vi mode, fzf, eza, zoxide, machine-local overrides |
+| [Starship](docs/starship.md) | Prompt format, and what's disabled on purpose |
+| [WezTerm](docs/wezterm.md) | Keybinds, copy mode, theming, the WSL2 domain |
+| [Neovim](docs/nvim.md) | The `SPC` tree, plugins, LSP, the startup budget |
+| [Emacs](docs/emacs.md) | The literate `config.org`, native-comp fix, source build |
+| [Claude Code](docs/claude.md) | Symlink bridge, settings, hooks, skills, MCP servers |
+| [Git](docs/git.md) · [ripgrep](docs/ripgrep.md) · [Clojure](docs/clojure.md) | The small ones |
 
 ## Requirements
 
-### Fonts
+A [Nerd Font](https://www.nerdfonts.com/font-downloads) for icons in eza, starship, and the
+WezTerm tab bar. **JetBrainsMono Nerd Font** is what the WezTerm config asks for by name, and the
+installer handles it on macOS and Windows. On Linux you install it yourself; the installer tells
+you so.
 
-A [Nerd Font](https://www.nerdfonts.com/font-downloads) is required for icons in eza, starship, and WezTerm tab bar glyphs. **JetBrainsMono Nerd Font** is recommended — it's what the WezTerm config expects.
-
-```sh
-# macOS
-brew install --cask font-jetbrains-mono-nerd-font
-
-# Linux — download from https://www.nerdfonts.com and install to ~/.local/share/fonts
-fc-cache -fv
-```
-
-### Shell tools
-
-All installed by `install.sh`. Listed here for reference:
-
-All Rust-based tools are built from source with cargo on every platform for consistent versions; only fzf (Go) comes from the system package manager.
-
-| Tool | Source | Used for |
-|------|--------|---------|
-| [eza](https://github.com/eza-community/eza) | cargo | `ls` replacement with icons and git status |
-| [fd](https://github.com/sharkdp/fd) | cargo (`fd-find`) | Fast `find` replacement; fzf file source |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | cargo | Fast grep |
-| [fzf](https://github.com/junegunn/fzf) | brew / apt / dnf / pacman | Fuzzy finder — `Ctrl-R` history, `Ctrl-T` files, `Alt-C` dirs |
-| [starship](https://starship.rs) | cargo | Cross-shell prompt |
-| [zoxide](https://github.com/ajeetdsouza/zoxide) | cargo | Smart `cd` that learns frequent dirs |
-| [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) | brew / git | Fish-style inline history suggestions |
-| [zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting) | brew / git | Command syntax coloring |
-
----
-
-## Shell layout
-
-```
-~/.zshenv                     ← sets ZDOTDIR, sources cargo env
-~/.config/zsh/
-  .zshrc                      ← main shell config
-  secrets.zsh                 ← credentials (NOT committed — see below)
-  .zsh_history                ← history file
-~/.config/starship.toml       ← prompt config
-~/.config/ripgrep/config      ← rg defaults
-```
-
-### Key bindings (fzf)
-
-| Key | Action |
-|-----|--------|
-| `Ctrl-R` | Fuzzy search shell history |
-| `Ctrl-T` | Fuzzy insert file path at cursor |
-| `Alt-C` | Fuzzy `cd` into directory |
-| `Ctrl-/` | Toggle preview pane |
-
-### eza aliases
-
-| Alias | Expands to |
-|-------|-----------|
-| `ls` | Icons, directories first |
-| `lsa` | `ls` + hidden files |
-| `ll` | Long format, human sizes, git status |
-| `lt` | Tree view, 2 levels |
-| `lta` | Tree view, 3 levels, all files |
-
----
-
-## Platform notes
-
-### macOS (primary)
-
-Uses Homebrew for zsh plugins and fzf, plus the Xcode Command Line Tools for the C toolchain cargo needs. All Rust tools (ripgrep, fd, eza, starship, zoxide) are built with cargo. The zsh plugin sources resolve to `/opt/homebrew/share/`.
-
-### Linux (Debian/Ubuntu, Fedora, Arch)
-
-The system package manager installs only the non-Rust base (zsh, git, curl, archive tools, fzf) plus a C build toolchain (`build-essential` / `gcc` / `base-devel`). All Rust tools are then built with cargo, so the same versions land on every distro regardless of how stale the repos are. Zsh plugins are git-cloned to `~/.local/share/zsh/plugins/` on all Linux distros for a consistent, up-to-date source.
-
-### Windows
-
-WezTerm runs on Windows and the `wezterm/` config works there (it already branches on `is_windows`). The zsh config is **not** applicable on Windows — WezTerm defaults to `pwsh`.
-
----
-
-## Secrets
-
-`zsh/secrets.zsh` is sourced at shell startup but **must not be committed**. It holds credentials that can't live in the environment another way.
-
-Add to your dotfiles `.gitignore`:
-
-```
-zsh/secrets.zsh
-```
-
-Rotate any credentials that were previously committed in plaintext before treating this repo as safe to push.
-
----
-
-## Updating tools
-
-```sh
-# Rust tools (eza, fd, starship, zoxide, rg)
-cargo install-update -a          # requires: cargo install cargo-update
-
-# Homebrew (macOS)
-brew upgrade
-
-# Zsh plugins (Linux git-clone install)
-bash install.sh                  # re-running is safe, it git-pulls each plugin
-```
+Everything else is [handled by the installer](docs/install.md).

@@ -43,7 +43,7 @@
       "Read(~/.config/claude/libs/**)"
     ]
   },
-  "model": "opus",
+  "model": "claude-fable-5-1[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -52,6 +52,41 @@
           {
             "type": "command",
             "command": "node -e \"require(require('os').homedir()+'/.config/claude/hooks/code-style-guard.cjs')\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('os').homedir()+'/.config/claude/hooks/comment-guard.cjs')\""
+          },
+          {
+            "type": "command",
+            "command": "node -e \"require(require('os').homedir()+'/.config/claude/hooks/prose-guard.cjs')\""
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('os').homedir()+'/.config/claude/hooks/style-guard-reset.cjs')\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('os').homedir()+'/.config/claude/hooks/style-guard-reset.cjs')\""
           }
         ]
       }

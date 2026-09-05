@@ -1,6 +1,6 @@
 return { -- Fuzzy Finder (files, lsp, etc)
 	"nvim-telescope/telescope.nvim",
-	event = "VimEnter",
+	cmd = "Telescope",
 	dependencies = {
 		"nvim-lua/plenary.nvim",
 		{ -- If encountering errors, see telescope-fzf-native README for installation instructions
@@ -67,12 +67,5 @@ return { -- Fuzzy Finder (files, lsp, etc)
 		-- Telescope pickers are bound in the central SPC tree (lua/austin/keybinds.lua):
 		--   SPC f f/s  find file      SPC f g  grep        SPC f r  recent
 		--   SPC SPC    buffers        SPC h h  help        SPC c g  LSP goto
-		-- One extra fuzzy-in-buffer search that doesn't fit the emacs tree:
-		vim.keymap.set("n", "<leader>/", function()
-			require("telescope.builtin").current_buffer_fuzzy_find(require("telescope.themes").get_dropdown({
-				winblend = 10,
-				previewer = false,
-			}))
-		end, { desc = "Fuzzy search in current buffer" })
 	end,
 }

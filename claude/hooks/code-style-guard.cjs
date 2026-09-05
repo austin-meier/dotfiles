@@ -1,23 +1,13 @@
 'use strict';
-/*
- * PreToolUse guard: enforces consulting the `writing-code` skill before writing code.
- *
- * Wired in settings.json as:
- *   node -e "require(require('os').homedir()+'/.config/claude/hooks/code-style-guard.cjs')"
- * (path resolved inside Node via os.homedir() so it needs no shell var / symlink / ~ and
- *  works identically under sh, Git Bash, and PowerShell.)
- *
- * Behavior: on the FIRST Write/Edit/MultiEdit to a tracked code language per (session, language),
- * exit 2 to block the call and print the reminder to stderr (the one channel PreToolUse reliably
- * feeds back to the model). Subsequent edits of that language in the same session pass through.
- */
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const scan = require('./lib/comment-scan.cjs');
+const prose = require('./lib/prose-scan.cjs');
+const markers = require('./lib/style-markers.cjs');
 
 let raw = '';
-try { raw = fs.readFileSync(0, 'utf8'); } catch (_) { /* no stdin */ }
-if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1); // strip BOM (e.g. PowerShell pipe)
+try { raw = fs.readFileSync(0, 'utf8'); } catch (_) { raw = ''; }
+if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
 
 let data;
 try { data = JSON.parse(raw || '{}'); } catch (_) { process.exit(0); }
@@ -28,35 +18,36 @@ if (tool !== 'Write' && tool !== 'Edit' && tool !== 'MultiEdit') process.exit(0)
 const file = (data.tool_input && data.tool_input.file_path) || '';
 const ext = path.extname(file).toLowerCase().slice(1);
 
-/* Tracked programming languages only — config/markup/shell are intentionally excluded so
- * editing dotfiles (lua, el, sh, ps1, json, md, ...) never triggers the guard. */
-const LANG = {
-  ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript',
-  js: 'typescript', jsx: 'typescript', mjs: 'typescript', cjs: 'typescript',
-  clj: 'clojure', cljs: 'clojure', cljc: 'clojure', edn: 'clojure',
-  rs: 'rust',
-  c: 'c', h: 'c', cpp: 'c', cc: 'c', cxx: 'c', hpp: 'c', hh: 'c',
-  java: 'java', py: 'python', go: 'go', ex: 'elixir', exs: 'elixir', cs: 'csharp',
-};
-const lang = LANG[ext];
+const lang = scan.LANGUAGES[ext] || (prose.isProse(file) ? 'prose' : undefined);
 if (!lang) process.exit(0);
 
-/* Once per (session, language) gate via a marker file in the temp dir. */
-const session = String(data.session_id || 'nosession').replace(/[^A-Za-z0-9._-]/g, '');
-const marker = path.join(os.tmpdir(), 'claude-writing-code.' + session + '.' + lang + '.flag');
+const marker = markers.markerPath(data.session_id, lang);
 
-try {
-  if (fs.existsSync(marker)) process.exit(0);
-  fs.writeFileSync(marker, String(Date.now()));
-} catch (_) { /* if tmp is unwritable, fall through and remind anyway */ }
+const alreadyReminded = () => {
+  try {
+    if (fs.existsSync(marker)) return true;
+    fs.writeFileSync(marker, String(Date.now()));
+  } catch (_) { return false; }
+  return false;
+};
 
-const msg = [
-  '[code-style-guard] STOP - consult the writing-code skill before writing ' + lang + ' code:',
-  '  1. Read skills/writing-code/SKILL.md (cross-language principles).',
-  '  2. Read skills/writing-code/languages/' + lang + '.md (if it exists).',
-  '  3. If this project depends on @jambnc/common or @jam/schemas, also read the jam-plus skill.',
-  'Then re-issue this ' + tool + '. (This guard fires once per language per session.)',
-].join('\n');
+if (alreadyReminded()) process.exit(0);
 
-process.stderr.write(msg + '\n');
+const codeReminder = () => [
+  '[code-style-guard] STOP - load the writing-code skill before writing ' + lang + ' code:',
+  '  1. Invoke it with the Skill tool: Skill(writing-code). Use the Skill tool, not Read, so it',
+  '     survives context compaction.',
+  '  2. Read ~/.claude/skills/writing-code/languages/' + lang + '.md if it exists.',
+  '  3. If this project depends on @jambnc/common or @jam/schemas, also invoke Skill(jam-plus).',
+  'Then re-issue this ' + tool + '. (Fires once per language per session, and again after compaction.)',
+];
+
+const proseReminder = () => [
+  '[code-style-guard] STOP - load the writing-docs skill before writing prose:',
+  '  1. Invoke it with the Skill tool: Skill(writing-docs). Use the Skill tool, not Read, so it',
+  '     survives context compaction.',
+  'Then re-issue this ' + tool + '. (Fires once per session, and again after compaction.)',
+];
+
+process.stderr.write((lang === 'prose' ? proseReminder() : codeReminder()).join('\n') + '\n');
 process.exit(2);

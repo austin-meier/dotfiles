@@ -1,119 +1,84 @@
 # TypeScript / JavaScript
 
-Read this together with the cross-language principles in `../SKILL.md`. These are the
-TS/JS-specific expressions of that style.
+TS/JS specifics on top of the principles in `../SKILL.md`.
 
-## Functions
+## Functions and classes
 
-- **Always** `const fn = () => {}` (arrow). **Never** the `function` keyword.
-- **Never** the `class` keyword. Model behavior with functions + plain objects/closures, and
-  state with tagged unions (`Union` / `Result` from the toolset). Composition over inheritance,
-  always.
+- Always `const fn = () => {}`. Never the `function` keyword.
+- Never `class`. Behavior is functions plus plain objects and closures. State is tagged unions
+  (`Union` / `Result` from the toolset).
 
 ## Types vs interfaces
 
-- **Default to `type`.** Compose with `&` (intersection) instead of `interface` inheritance
-  (`extends`). Props, data shapes, DTOs, unions, and intermediate types are always `type`.
-- **Reserve `interface` for genuine API-level behavior contracts:** something that is a
-  composable, replaceable API boundary (callers implement or swap it). Behavior contract =
-  `interface`; data contract = `type`.
+- Default to `type`. Compose with `&`, not `interface extends`. Props, data shapes, DTOs, unions,
+  and intermediates are all `type`.
+- `interface` only for a genuine behavior contract that callers implement or swap. Behavior
+  contract = `interface`; data contract = `type`.
 
-## Null vs undefined
+## Absence
 
-- Never produce or compare against `null`. Absence is `undefined` (Clojure nil-punning).
-- Don't write `=== null`. Use `=== undefined`, truthiness, or the `defined(x)` guard
-  (`x != null`) from `functionUtils`.
+`undefined`, never `null`. Test with `=== undefined`, truthiness, or `defined(x)` from
+`functionUtils` (the `x != null` guard).
 
-## Iteration
+## Architecture
 
-- Prefer `map` / `filter` / `reduce` / `forEach` (and the `arrayUtils` helpers) over `for` /
-  `while` loops for direct iteration.
-
-## Architecture (ESM)
-
-- Business logic lives in `lib/`. The package's `index.ts` (the API surface) is **thin**: it
-  imports from `lib/`, wires/exposes, and does nothing else. No business logic in `index.ts`,
-  route handlers, or controllers — those load data, call `lib/` functions, return responses.
-- `"type": "module"` ESM. Prefer named exports.
+- `"type": "module"` ESM, named exports.
+- Business logic in `lib/`. `index.ts`, route handlers, and controllers import from `lib/`, wire
+  it up, and do nothing else.
 
 ## React
 
-Always use **Atomic Design** to structure React components. Organize by composition level and
-compose upward:
+Atomic Design, composed upward:
 
 ```
 components/
-  atoms/       # Buttons, Inputs, Labels - smallest building blocks
-  molecules/   # SearchBar, FormField - a few atoms combined into a useful unit
-  organisms/   # Header, NavigationBar, ProductGrid - molecules/atoms forming a distinct UI section
-  templates/   # DashboardLayout, AuthLayout - arrangements of organisms into a page skeleton
-  pages/       # HomePage, SettingsPage - a template wired to real data/state for a specific use
+  atoms/       Buttons, Inputs, Labels
+  molecules/   SearchBar, FormField
+  organisms/   Header, NavigationBar, ProductGrid
+  templates/   DashboardLayout, AuthLayout
+  pages/       HomePage, SettingsPage, a template wired to real data
 ```
 
-Place each component at the right level. Combined with the rules above: arrow-function
-components (never the `function` keyword), never the `class` keyword, composition over
-inheritance.
+Arrow-function components, no classes, composition over inheritance.
 
-## Use the toolset — don't roll your own
+## The toolset
 
-Before writing a helper, reach for the curated, Clojure-inspired toolset. The **authoritative
-source lives in this repo** — read the actual `.ts` file for exact signatures, overloads, and
-doc comments (the source is the index; don't trust a hand-written summary over it):
-
-    ../../../libs/typescript/utils/
-
-That path is relative to this file. It resolves to `~/.config/claude/libs/typescript/utils/`
-(and to `~/.claude/libs/...` via the linked config — see `link.sh` / `link.ps1`). The same
-modules ship inside `@jambnc/common`; in a project that depends on it, **import from
-`@jambnc/common`** rather than copying — see the `jam-plus` skill.
-
-Discovery map — module → what it's for → key exports (open the file for signatures):
+Before writing a helper, read the real source at `../../../libs/typescript/utils/` (resolves to
+`~/.config/claude/libs/typescript/utils/`). The `.ts` files are the index; trust them over this
+map. In a project that depends on `@jambnc/common`, import from it instead of copying.
 
 **Core**
-- `result` — `Result<T,E>` typed error handling; prefer over throwing. `Ok`, `Err`, `isOk`/`isErr`,
+- `result`: `Result<T,E>` typed error handling; prefer over throwing. `Ok`, `Err`, `isOk`/`isErr`,
   `map`, `orElse`, `orElseCall`, `orElseMaybe`, `tryCatch`, `tryCatchAsync`, `collectOk`.
-- `objectUtils` — immutable nested access/transform. `getIn`, `updateIn`, `deleteIn`, `resolveIn`,
+- `objectUtils`: immutable nested access/transform. `getIn`, `updateIn`, `deleteIn`, `resolveIn`,
   `mapValues`, `mapKeys`, `deepMerge`, `invert`, `isObject`.
-- `arrayUtils` — sequences. `first`/`last`, `butFirst`/`butLast`, `count`, `groupBy`, `keyBy`,
+- `arrayUtils`: sequences. `first`/`last`, `butFirst`/`butLast`, `count`, `groupBy`, `keyBy`,
   `indexBy`, `unique`/`uniqueBy`, `keep`, `intersect`/`intersectBy`, `range`/`rangeInclusive`, `Sorting`.
-- `functionUtils` — functional primitives. `identity`, `defined` (`x != null` guard), `isEmpty`,
-  `memoize`, `take`.
-- `stringUtils` — `isString`, `capitalizeFirst`, `asHex`, `decodeHtmlEntities`, `acronymize`,
+- `functionUtils`: `identity`, `defined`, `isEmpty`, `memoize`, `take`.
+- `stringUtils`: `isString`, `capitalizeFirst`, `asHex`, `decodeHtmlEntities`, `acronymize`,
   `levenshtein`, `fuzzyScore`.
-- `numberUtils` — `parseNumber` (returns `Result`, not `NaN`/throw), `fromOrdinal`, `toOrdinal`.
-- `union` — `Union<Mappings>` tagged-union builder; backs `Result`. Use for discriminated unions
-  instead of class hierarchies.
+- `numberUtils`: `parseNumber` (returns `Result`, not `NaN`/throw), `fromOrdinal`, `toOrdinal`.
+- `union`: `Union<Mappings>` tagged-union builder; backs `Result`. Use instead of class hierarchies.
 
-**Domain / platform (use when relevant)**
-- `dimension` — `Dim` helpers + branded `Dimension` type (`'in'|'pt'|'cm'|'m'|'mm'`), `Dimensionable`.
-- `pricingUtils` — tiered/bundle pricing (`getTier`, `getUnitPriceAtTier`, `getAddToCartPrice`, ...).
-- `coverageUtils` — ingredient/coverage maps (`calculateCoverage`, `getCoverageAdder`).
-- `zodUtils` — `extractDefaults(schema)` + zod helpers (pairs with `@jam/schemas`).
-- `fetchUtils` — `fetchFrom<T>(...)` typed fetch wrapper.
-- `environmentUtils` — `getEnvironmentValue`, `getOrThrow`, `getEnvironment`.
-- `jwtUtils` — `decodeJwtPayload`, `isJwtExpired`.
-- `cookieUtils` — `parseCookie`, `getDocumentCookie` (memoized).
+**Domain / platform**
+- `dimension`: `Dim` helpers, branded `Dimension` (`'in'|'pt'|'cm'|'m'|'mm'`), `Dimensionable`.
+- `pricingUtils`: tiered/bundle pricing (`getTier`, `getUnitPriceAtTier`, `getAddToCartPrice`, ...).
+- `coverageUtils`: `calculateCoverage`, `getCoverageAdder`.
+- `zodUtils`: `extractDefaults(schema)` plus zod helpers (pairs with `@jam/schemas`).
+- `fetchUtils`: `fetchFrom<T>(...)` typed fetch wrapper.
+- `environmentUtils`: `getEnvironmentValue`, `getOrThrow`, `getEnvironment`.
+- `jwtUtils`: `decodeJwtPayload`, `isJwtExpired`.
+- `cookieUtils`: `parseCookie`, `getDocumentCookie` (memoized).
 
 ## Comments
 
-- `/* */` multiline only. Short. Only for non-obvious **why** (hidden constraints, workarounds,
-  invariants) or links to related code/docs.
-- No banner comments, no section dividers, no large JSDoc blocks. A comment should never be
-  longer than the code it describes — clean functional code documents itself.
+Zero, per `../SKILL.md`. No JSDoc anywhere: the type signature is the documentation. Directives
+stay on one line and are fine (`// eslint-disable-next-line`, `// @ts-expect-error`,
+`/// <reference />`). Where you wanted a comment above an `if`, write a named intermediate
+`const` instead (`const hasExpiredSession = ...`).
 
-## Testing
+## Testing and verification
 
-See the cross-language testing rule in `../SKILL.md`. TS/JS specifics:
-
-- For a plain Node/TS project, a simple `test.js` (or the built-in `node --test`) wired to a
-  `"test": "node test.js"` script in `package.json` is usually enough. Don't pull in a heavy test
-  framework just to test some pure functions.
-- For a **Vite** project, use **vitest**.
-
-## JAM+ projects
-
-If the project depends on `@jambnc/common` or `@jam/schemas` (check `package.json`), this is a
-JAM+ project — **also invoke the `jam-plus` skill** for domain types, the package registry
-setup, and conventions.
-
-<!-- TODO: add a short real example (a thin index.ts + a lib/ function) once confirmed. -->
+- Plain Node/TS project: `node --test`, or a simple `test.js`, wired to `"test"` in `package.json`.
+- Vite project: vitest.
+- Before you're done: TypeScript LSP diagnostics on every touched file, or `tsc --noEmit`.

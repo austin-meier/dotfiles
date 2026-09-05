@@ -1,6 +1,6 @@
 return { -- Useful plugin to show you pending keybinds.
 	"folke/which-key.nvim",
-	event = "VimEnter", -- Sets the loading event to 'VimEnter'
+	event = "VeryLazy",
 	opts = {
 		-- delay between pressing a key and opening which-key (milliseconds)
 		-- this setting is independent of vim.o.timeoutlen
@@ -44,6 +44,7 @@ return { -- Useful plugin to show you pending keybinds.
 
 		-- Group labels for the SPC tree (mirrors the emacs which-key groups)
 		spec = {
+			{ "<leader>a", group = "ai" },
 			{ "<leader>b", group = "buffers" },
 			{ "<leader>f", group = "files" },
 			{ "<leader>o", group = "open" },
@@ -51,8 +52,11 @@ return { -- Useful plugin to show you pending keybinds.
 			{ "<leader>g", group = "git" },
 			{ "<leader>gh", group = "hunks" },
 			{ "<leader>t", group = "tabs" },
+			{ "<leader>e", group = "eval/build" },
 			{ "<leader>h", group = "help" },
+			{ "<leader>hd", group = "describe" },
 			{ "<leader>w", group = "window" },
+			{ "<leader>wm", group = "move window" },
 			{ "<leader>c", group = "code" },
 			{ "<leader>ca", group = "actions" },
 			{ "<leader>cg", group = "goto" },
@@ -60,6 +64,8 @@ return { -- Useful plugin to show you pending keybinds.
 			{ "<leader>cw", group = "workspace" },
 			{ "<leader>cd", group = "debug" },
 			{ "<leader>cu", group = "ui" },
+			{ "<leader>cp", group = "peek" },
+			{ "<leader>ct", group = "tree" },
 		},
 	},
 }

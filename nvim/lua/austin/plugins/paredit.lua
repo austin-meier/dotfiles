@@ -1,6 +1,5 @@
-return {
+return { -- Structural editing — mirrors the emacs lispyville/paredit setup
 	"julienvincent/nvim-paredit",
-	config = function()
-		require("nvim-paredit").setup()
-	end,
+	ft = { "clojure", "fennel", "racket", "scheme", "lisp", "janet" },
+	opts = {},
 }

@@ -380,9 +380,23 @@ if not is_windows then
   config.initial_rows = 50
 end
 
+-- Windows: these dotfiles are unix, so open into WSL2 rather than a native shell.
+-- WezTerm stays a Windows GUI app talking to a real Linux pty, which keeps fonts,
+-- clipboard, and GPU rendering native. Falls back to a Windows shell when no
+-- distro is installed.
 if is_windows then
-  -- Prefer Nushell, then pwsh, then the built-in powershell.
-  if find_in_path('nu.exe') then
+  local wsl = wezterm.default_wsl_domains()
+  config.wsl_domains = wsl
+
+  local preferred = nil
+  for _, domain in ipairs(wsl) do
+    if domain.name == 'WSL:Ubuntu' then preferred = domain.name end
+  end
+  if preferred == nil and #wsl > 0 then preferred = wsl[1].name end
+
+  if preferred ~= nil then
+    config.default_domain = preferred
+  elseif find_in_path('nu.exe') then
     config.default_prog = { 'nu.exe' }
   elseif find_in_path('pwsh.exe') then
     config.default_prog = { 'pwsh.exe', '-NoLogo' }

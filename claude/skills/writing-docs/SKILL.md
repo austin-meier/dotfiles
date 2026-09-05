@@ -1,6 +1,6 @@
 ---
 name: writing-docs
-description: Write or revise documentation (READMEs, guides, Confluence, internal code docs, design notes) in the user's personal voice - approachable, conversational, honest, lightly funny. Use whenever authoring or revising human-facing prose, and especially when the user says things like "use my doc writing skill". The goal is that it sounds like the user wrote it, not like generic AI docs.
+description: Write or revise documentation (READMEs, guides, Confluence, internal code docs, design notes, commit messages) in the user's personal voice - approachable, conversational, honest, lightly funny. Use whenever authoring or revising human-facing prose, and especially when the user says things like "use my doc writing skill". The goal is that it sounds like the user wrote it, not like generic AI docs.
 ---
 
 # Writing docs in my voice
@@ -28,18 +28,15 @@ first-class doc type and make them quick, simple, and easy to follow.
   Keep them short and skimmable. The reader should be able to glance at it and just do the thing.
 - Lead with the goal in a sentence, then the steps. Include the exact commands, console paths, and
   values to use. Light on prose, heavy on "do this, then this."
-- Document the **major, common, clear recurring tasks** a project will actually go through. For
-  example:
-  - "Updating keys when they expire"
-  - "Adding a new user"
-  - "Deleting or deactivating a user"
-  - "Adding your key to NetSuite"
-- **Don't over-document.** Skip trivial, obvious, or one-off procedures nobody will look up. If a
-  proc isn't a real recurring task someone will come back for, leave it out. Better to have a few
-  clear, high-value guides than a pile of noise.
+- Document the **major, common, clear recurring tasks** a project will actually go through:
+  "Updating keys when they expire", "Adding a new user", "Adding your key to NetSuite".
+- **Don't over-document.** Skip trivial, obvious, or one-off procedures nobody will look up. Better
+  a few clear, high-value guides than a pile of noise.
 
 For the full procedure playbook (opening shape, bold menu breadcrumbs, destructive-op safety,
-runbook dispatch pages, with real examples from my Confluence), see `references/procedures.md`.
+runbook dispatch pages, with real examples from my Confluence), read `references/procedures.md`.
+Its SQL snippets carry inline comments on purpose. That's a doc convention for readers, not code
+that lives in a repo, so the zero-comments rule from `writing-code` doesn't apply there.
 
 ## Humor and edge: calibrate to the audience
 
@@ -49,12 +46,10 @@ Three tiers, from loosest to most reserved:
    Loosest register, write it how I'd say it.
 2. **Internal / team docs** (internal code documentation, internal project READMEs). Full
    personality. Blunt jabs and light profane words are fine. This is the home turf of the voice.
-3. **Public-facing** (Confluence, open source, customer or partner facing). Keep my tone but lighter.
-   Sarcasm and light jabs are good when they build approachability and friendliness for the reader.
-   Keep blatant or heavy profanity ("fuck" and friends) near zero. Lean warm and welcoming. On
-   Confluence specifically my voice stays honest and approachable: candid asides about tech debt,
-   friendly "if you're unsure just ask a dev" guardrails, and the occasional wry "you get to..."
-   are all on-brand, just with the humor dialed down from the internal-repo level.
+3. **Public-facing** (Confluence, open source, customer or partner facing). Same honesty, humor
+   dialed down. Sarcasm and light jabs are fine when they make the reader feel welcome. Heavy
+   profanity ("fuck" and friends) near zero. Candid tech-debt asides and "if you're unsure just ask
+   a dev" guardrails are on-brand.
 
 Two rules that hold across every tier:
 
@@ -77,8 +72,9 @@ If you genuinely can't tell the audience, ask, or default to the more reserved t
 
 ## Mechanics
 
-- **No emdashes, ever.** I don't use them naturally. Use commas, parentheses, periods, or just
-  restructure the sentence. If old docs have them, that wasn't me.
+- **No em dashes, ever.** I don't use them naturally. Use commas, parentheses, periods, or just
+  restructure the sentence. If old docs have them, that wasn't me. The `prose-guard` hook rejects
+  any edit that adds one, so don't bother trying.
 - Contractions always (it's, don't, you'll, we're).
 - Sentence-case headings. Use `#` / `##` / `###`.
 - Numbered lists for ordered steps (repeated `1.` in markdown is fine). Bullets for unordered.
@@ -88,18 +84,43 @@ If you genuinely can't tell the audience, ask, or default to the more reserved t
   side notes.
 - Write clean prose. My real docs have the odd typo. Keep the voice, not the typos.
 
+## AI tells: none of these
+
+The fastest way to sound like a robot instead of me:
+
+- Filler openers and transitions: "Additionally", "Furthermore", "It's worth noting", "In summary",
+  "In conclusion", "Overall", "Essentially" as a sentence opener.
+- Marketing adjectives and verbs: "seamless", "robust", "powerful", "comprehensive", "crucial",
+  "leverage", "delve", "streamline", "elevate", "empower".
+- The "not X, but Y" reframe. Three adjectives in a row for rhythm.
+- Headers on a doc under about 200 words. A closing paragraph that restates the opening.
+- Hedging every claim. Say the thing.
+- Bolding whole sentences. Bold a term or an action, not a paragraph.
+
+## Commit messages
+
+Read the last twenty subjects in the repo and match them. Mine are short, lowercase, and
+imperative-ish ("fix json for claude settings", "update emacs and ignore zsh sessions"), with no
+body unless the why isn't obvious from the diff. Never any Claude attribution.
+
 ## Structure
 
 - Default to a single README/file for small or single-topic docs.
-- **Split into a TOC-style README plus a `documentation/` folder when a section is a clearly
-  separable, reusable chunk** that other docs (or people) could reference on its own. The point is
-  staying DRY and scalable: write the in-depth piece once, then link people to it instead of
-  repeating myself.
-- Organize the `documentation/` folder by area (`setup/`, `deployment/`, `tools/`, `css/`, `intro`,
-  ...). Each sub-doc opens with a `# Title` and a link back to the table of contents.
-- **Ask me per project before fragmenting.** If the project already has fragmented docs (a
-  `documentation/` folder, a TOC-style README), ask whether to keep breaking new pieces out into
-  their own abstract docs. Don't unilaterally restructure an established layout.
+- **Split into a TOC-style README plus a docs folder when a section is a clearly separable,
+  reusable chunk** that other docs (or people) could reference on its own. The point is staying DRY
+  and scalable: write the in-depth piece once, then link people to it instead of repeating myself.
+- Use whatever docs folder the repo already has (`docs/` or `documentation/`), organized by area
+  (`setup/`, `deployment/`, `tools/`, ...). Each sub-doc opens with a `# Title` and a link back to
+  the table of contents.
+- **Ask me per project before fragmenting.** If the project already has fragmented docs, ask
+  whether to keep breaking new pieces out into their own docs. Don't unilaterally restructure an
+  established layout.
+
+## Before you hand it over
+
+- Every command in the doc was run, by you, and did what the doc says it does.
+- Every path and file name exists. Every link resolves.
+- Read it once as the coworker at the desk. If a sentence sounds like a press release, rewrite it.
 
 ## Examples (my actual voice)
 
@@ -116,16 +137,3 @@ Honest reasoning behind a forced choice:
 > Modern ES6 React has taken over the frontend market. There are plenty of flaws with it, it's not
 > my favorite thing, but it's here to stay and has enterprise support. So to keep reliable, stable
 > support, we decided a TypeScript React frontend is the right call.
-
-What not to do:
-- No emdashes.
-- Don't open a reference or how-to doc with a comedy routine. Save personality for overviews and context.
-- Don't stack analogies or lean on the "you might think..." move over and over.
-- Don't carry heavy profanity into team or public docs.
-- Don't aim jabs at people.
-
-## References
-
-- `references/procedures.md`: the procedure playbook (my most common doc type), covering opening shape,
-  bold menu breadcrumbs, code/SQL conventions, destructive-op safety, and runbook dispatch pages,
-  with real examples pulled from my Confluence.

@@ -19,7 +19,8 @@ return { -- Autoformat
 			-- have a well standardized coding style. You can add additional
 			-- languages here or re-enable it for the disabled ones.
 			local disable_filetypes = { c = true, cpp = true, java = true }
-			if disable_filetypes[vim.bo[bufnr].filetype] then
+			-- Toggled at runtime by SPC c a F (emacs austin/toggle-format-on-save).
+			if vim.g.disable_autoformat or disable_filetypes[vim.bo[bufnr].filetype] then
 				return nil
 			else
 				return {

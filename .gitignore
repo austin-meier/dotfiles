@@ -9,8 +9,11 @@
 
 # ─── Tracked top-level files ─────────────────────────────────────────────────
 !/.gitignore
+!/CLAUDE.md
 !/README.md
+!/WINDOWS-MIGRATION.md
 !/install.sh
+!/install.ps1
 !/starship.toml
 
 # ─── Tracked config directories ──────────────────────────────────────────────
@@ -18,7 +21,9 @@
 # nested whitelist .gitignore). Re-exclude any in-tree junk further below.
 !/claude/
 !/clojure/
+!/docs/
 !/emacs/
+!/install/
 !/git/
 !/nvim/
 !/ripgrep/
@@ -50,6 +55,9 @@ claude/.credentials.json
 claude/history.jsonl
 claude/**/*.backup-*
 claude/settings.local.json
+
+# install/ — dev-only tooling for typechecking; the installer itself needs none.
+install/node_modules/
 
 # clojure cache
 **/.cpcache

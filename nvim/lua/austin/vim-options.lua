@@ -1,6 +1,13 @@
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
+-- No remote-plugin providers are used here. Left enabled, Neovim probes PATH
+-- for each interpreter before the first frame, which is measurable on Windows.
+vim.g.loaded_python3_provider = 0
+vim.g.loaded_perl_provider = 0
+vim.g.loaded_ruby_provider = 0
+vim.g.loaded_node_provider = 0
+
 -- Line numbers
 vim.o.number = true
 vim.o.relativenumber = true

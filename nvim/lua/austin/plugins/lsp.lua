@@ -15,6 +15,7 @@ return {
 	{
 		-- Main LSP Configuration
 		"neovim/nvim-lspconfig",
+		event = { "BufReadPre", "BufNewFile" },
 		dependencies = {
 			-- Automatically install LSPs and related tools to stdpath for Neovim
 			-- Mason must be loaded before its dependents so we need to set it up here.
@@ -194,7 +195,13 @@ return {
 				"jdtls",
 				"typescript-language-server",
 			})
-			require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
+			require("mason-tool-installer").setup({
+				ensure_installed = ensure_installed,
+				-- Loading the mason registry is the slowest step in this chain and
+				-- nothing needs it to have finished. Let the buffer open first.
+				run_on_start = true,
+				start_delay = 3000,
+			})
 
 			require("mason-lspconfig").setup({
 				ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
