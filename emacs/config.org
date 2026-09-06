@@ -252,13 +252,32 @@ redirected paths.
     (defun austin/git-stage-all ()
       "Stage all changes, including untracked files."
       (interactive)
-      (magit-stage-modified t) 
+      (magit-stage-modified t)
       (message "All files staged"))
 
     (defun austin/run-in-new-tab (fn)
       "Create a new tab and call FN inside it."
       (tab-bar-new-tab)
       (funcall fn))
+
+    (defun austin/project-create (dir)
+      "Create a new project at DIR, init a git repo there, then open dired.
+Prompts for DIR like `find-file' (path completion), creating parent
+directories as needed."
+      (interactive
+       (list (read-directory-name "Create project in: " default-directory)))
+      (let ((dir (expand-file-name dir)))
+        (when (and (file-directory-p dir)
+                   (directory-files dir nil directory-files-no-dot-files-regexp t)
+                   (not (yes-or-no-p
+                         (format "%s already exists and is non-empty. Continue? " dir))))
+          (user-error "Aborted"))
+        (make-directory dir t)
+        (let ((default-directory dir))
+          (unless (file-directory-p (expand-file-name ".git" dir))
+            (call-process "git" nil nil nil "init")))
+        (dired dir)
+        (message "Created project %s" dir)))
 
     (defun austin/tab-last-buffer ()
       "Open a new tab with the last buffer you were visiting."
@@ -630,6 +649,7 @@ redirected paths.
 
       ;; projects menu
       "p"   '(:ignore t :wk "projects")
+      "pc"  '(austin/project-create :wk "create project")
       "po"  '(project-switch-project :wk "open project")
       "p k"  '(project-kill-buffers :wk "kill project buffer")
       "p SPC"  '(project-switch-to-buffer :wk "switch project buffer")
@@ -1168,6 +1188,12 @@ Bindings: =C-;= and =SPC ;= for ~embark-act~, =M-.= for ~embark-dwim~
     :custom
       (company-idle-delay 0.2)                ;; how long to wait before popup
       (company-minimum-prefix-length 1)       ;; start completing after first char
+      ;; Keep company OUT of terminal/REPL buffers. In eshell, company-capf
+      ;; routes through pcomplete; on the first char of a line that means
+      ;; scanning every executable on $PATH (then prescient-sorting it) on
+      ;; each keystroke — the multi-second freeze when typing e.g. `cd`.
+      ;; Eshell still completes fine on TAB via pcomplete.
+      (company-global-modes '(not eshell-mode shell-mode term-mode eat-mode))
       (company-tooltip-align-annotations t)   ;; align annotation to the right
       (company-selection-wrap-around t)       ;; cycle through candidates
       (company-show-numbers t)                 ;; quick selection via M-<number>
