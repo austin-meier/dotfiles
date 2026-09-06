@@ -114,8 +114,18 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -DryRun    # read the plan 
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-That's WezTerm plus the Nerd Font, and a WSL2 check. Two winget packages. WezTerm is already
+That's WezTerm plus the Nerd Font, gated on WSL2. Two winget packages. WezTerm is already
 installed here, so the only real change is the font.
+
+**WSL2 is required now, not just checked.** These dotfiles are unix; the host is only the terminal
+and its font, so there's nothing worth installing if WSL2 isn't there. No WSL2 distro and the
+script stops and points you at `wsl --install`. If a box genuinely can't run WSL2, `-Native` is the
+escape hatch (you lose zsh, starship, and Emacs, and that path does need Node on Windows).
+
+**It also sets `WEZTERM_CONFIG_FILE`** to the WSL copy of `wezterm.lua`, but only once that clone
+exists (step 4). On a fresh box the clone isn't there yet when you run this, so it skips with a
+note. Re-run `install.ps1` after step 4 and it sets the var for you. On this box the clone was
+already in place, so it's set. See step 7.
 
 **`install.ps1` needs nothing but winget.** No Node, no dependencies. That's deliberate: step 6 is
 about keeping Windows Node out of your WSL PATH, and it would be silly for the installer to make
@@ -415,13 +425,15 @@ second distro ever shows up, make that match a prefix.
 The real question is where the Windows WezTerm reads its config from once the Windows repo clone
 stops being the source of truth. WezTerm is a Windows app, so it looks at
 `%USERPROFILE%\.config\wezterm\wezterm.lua` or `%USERPROFILE%\.wezterm.lua`. Today that's this
-repo. Rather than keep a second clone on `C:` that drifts, point WezTerm at the WSL copy with a
-user environment variable:
+repo. Rather than keep a second clone on `C:` that drifts, WezTerm reads the WSL copy through a
+user environment variable. **`install.ps1` (step 2) sets this for you** once the WSL clone exists,
+so on this box it's already done. The value it writes:
 
 ```
 WEZTERM_CONFIG_FILE=\\wsl.localhost\Ubuntu-24.04\home\austin\.config\wezterm\wezterm.lua
 ```
 
+If you ever need to set it by hand (a second distro, a fresh box before step 4), it's under
 **Settings → System → About → Advanced system settings → Environment Variables → User**, or from
 PowerShell:
 

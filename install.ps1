@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-   Windows host bootstrap. WezTerm, its font, and a WSL2 check. Nothing else.
+   Windows host bootstrap. WezTerm, its font, a required WSL2 gate, and pointing
+   WezTerm at the WSL dotfiles. Nothing else.
 
 .DESCRIPTION
    These dotfiles are unix. On Windows the real install happens inside WSL2 and
@@ -51,23 +52,28 @@ if ($Native) {
 }
 
 # ─── WSL2 ─────────────────────────────────────────────────────────────────────
-# Advisory, not a gate. A false negative here should not block two harmless
-# winget installs, so a parsing miss degrades to a warning.
-$hasWsl2 = $false
+$wsl2Distros = @()
 if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
    $env:WSL_UTF8 = '1'
    $listing = ((& wsl.exe --list --verbose 2>$null) -join "`n") -replace "`0", ''
-   # Columns: optional * marker, NAME, STATE, VERSION.
-   $hasWsl2 = $listing -match '(?m)^\s*\*?\s*\S+\s+\S+\s+2\s*$'
+   foreach ($line in ($listing -split "`n")) {
+      if ($line -match '^\s*(\*?)\s*(\S+)\s+\S+\s+2\s*$') {
+         $wsl2Distros += [pscustomobject]@{ Default = $matches[1] -eq '*'; Name = $matches[2] }
+      }
+   }
 }
 
-if ($hasWsl2) {
-   Write-Ok 'WSL2 distro detected'
-} else {
-   Write-Warn 'No WSL2 distro detected. Installing the host side anyway.'
+if ($wsl2Distros.Count -eq 0) {
+   Write-Warn 'No WSL2 distro found. These dotfiles install inside WSL2; the host only carries WezTerm and its font.'
    Write-Info '    wsl --install -d Ubuntu           # then reboot if prompted'
    Write-Info '    wsl --set-version <distro> 2      # if you are on WSL1'
+   Write-Info 'Then re-run. If WSL2 genuinely is not an option here, use -Native for the degraded native stack.'
+   exit 1
 }
+
+$distroName = ($wsl2Distros | Where-Object { $_.Default } | Select-Object -First 1).Name
+if (-not $distroName) { $distroName = $wsl2Distros[0].Name }
+Write-Ok "WSL2 distro detected: $distroName"
 
 # ─── Host packages ────────────────────────────────────────────────────────────
 $packages = @(
@@ -99,6 +105,24 @@ foreach ($package in $packages) {
    } else {
       Write-Warn "$($package.Name) exited $LASTEXITCODE"
    }
+}
+
+$wslHome = (& wsl.exe -d $distroName -- sh -c 'printf %s "$HOME"' 2>$null)
+$wslHome = ($wslHome -replace "`0", '').Trim()
+$configUnc = "\\wsl.localhost\$distroName$($wslHome.Replace('/', '\'))\.config\wezterm\wezterm.lua"
+
+if ($wslHome -and (Test-Path -LiteralPath $configUnc)) {
+   if ($DryRun) {
+      Write-Info "would set WEZTERM_CONFIG_FILE -> $configUnc"
+   } elseif ([Environment]::GetEnvironmentVariable('WEZTERM_CONFIG_FILE', 'User') -ne $configUnc) {
+      [Environment]::SetEnvironmentVariable('WEZTERM_CONFIG_FILE', $configUnc, 'User')
+      Write-Ok "WEZTERM_CONFIG_FILE -> $configUnc"
+   } else {
+      Write-Ok 'WEZTERM_CONFIG_FILE already current'
+   }
+} else {
+   Write-Info 'WSL dotfiles clone not found yet; WezTerm config source left unset.'
+   Write-Info 'Re-run after cloning the dotfiles in WSL, or set WEZTERM_CONFIG_FILE by hand (WINDOWS-MIGRATION.md step 7).'
 }
 
 # ─── Next ─────────────────────────────────────────────────────────────────────
