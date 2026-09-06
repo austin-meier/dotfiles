@@ -43,7 +43,7 @@
       "Read(~/.config/claude/libs/**)"
     ]
   },
-  "model": "claude-fable-5-1[1m]",
+  "model": "claude-opus-4-8[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -96,10 +96,12 @@
     "typescript-lsp@claude-plugins-official": true,
     "frontend-design@claude-code-plugins": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "clangd-lsp@claude-plugins-official": true
+    "clangd-lsp@claude-plugins-official": true,
+    "shopify-ai-toolkit@claude-plugins-official": true
   },
   "effortLevel": "high",
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
-  "switchModelsOnFlag": true
+  "switchModelsOnFlag": true,
+  "agentPushNotifEnabled": true
 }
